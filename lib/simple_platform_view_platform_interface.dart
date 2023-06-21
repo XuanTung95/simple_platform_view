@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'simple_platform_view_method_channel.dart';
@@ -23,7 +25,7 @@ abstract class SimplePlatformViewPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion() {
-    throw UnimplementedError('platformVersion() has not been implemented.');
+  Future<void> setBackgroundColor(Color color) {
+    throw UnimplementedError('setBackgroundColor() has not been implemented.');
   }
 }

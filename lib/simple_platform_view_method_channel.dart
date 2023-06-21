@@ -7,11 +7,10 @@ import 'simple_platform_view_platform_interface.dart';
 class MethodChannelSimplePlatformView extends SimplePlatformViewPlatform {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('simple_platform_view');
+  final methodChannel = const MethodChannel('tungpx/simple_platform_views_global');
 
   @override
-  Future<String?> getPlatformVersion() async {
-    final version = await methodChannel.invokeMethod<String>('getPlatformVersion');
-    return version;
+  Future<void> setBackgroundColor(Color color) async {
+    await methodChannel.invokeMethod<dynamic>('setBackgroundColor', {'color': color.value});
   }
 }
