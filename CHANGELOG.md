@@ -1,3 +1,3 @@
-## 0.0.1
+## [0.0.1] - (2023-Jun-22)
 
-* TODO: Describe initial release.
+* First Release Android

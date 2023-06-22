@@ -1,0 +1,69 @@
+PODS:
+  - BMPlayer (1.3.2):
+    - BMPlayer/Full (= 1.3.2)
+  - BMPlayer/Core (1.3.2)
+  - BMPlayer/Full (1.3.2):
+    - BMPlayer/Core
+    - NVActivityIndicatorView (~> 4.7.0)
+    - SnapKit (~> 5.0.0)
+  - Flutter (1.0.0)
+  - google_maps_flutter_ios (0.0.1):
+    - Flutter
+    - GoogleMaps (< 8.0)
+  - GoogleMaps (5.2.0):
+    - GoogleMaps/Maps (= 5.2.0)
+  - GoogleMaps/Base (5.2.0)
+  - GoogleMaps/Maps (5.2.0):
+    - GoogleMaps/Base
+  - integration_test (0.0.1):
+    - Flutter
+  - NVActivityIndicatorView (4.7.0):
+    - NVActivityIndicatorView/Presenter (= 4.7.0)
+  - NVActivityIndicatorView/Presenter (4.7.0)
+  - SnapKit (5.0.1)
+  - test_plugin (0.0.1):
+    - BMPlayer
+    - Flutter
+  - webview_flutter_wkwebview (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - google_maps_flutter_ios (from `.symlinks/plugins/google_maps_flutter_ios/ios`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
+  - test_plugin (from `.symlinks/plugins/test_plugin/ios`)
+  - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/ios`)
+
+SPEC REPOS:
+  trunk:
+    - BMPlayer
+    - GoogleMaps
+    - NVActivityIndicatorView
+    - SnapKit
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  google_maps_flutter_ios:
+    :path: ".symlinks/plugins/google_maps_flutter_ios/ios"
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
+  test_plugin:
+    :path: ".symlinks/plugins/test_plugin/ios"
+  webview_flutter_wkwebview:
+    :path: ".symlinks/plugins/webview_flutter_wkwebview/ios"
+
+SPEC CHECKSUMS:
+  BMPlayer: e4b241bd088644d7b89d991a1a65d1b1615d19b3
+  Flutter: f04841e97a9d0b0a8025694d0796dd46242b2854
+  google_maps_flutter_ios: abdac20d6ce8931f6ebc5f46616df241bfaa2cfd
+  GoogleMaps: 025272d5876d3b32604e5c080dc25eaf68764693
+  integration_test: 13825b8a9334a850581300559b8839134b124670
+  NVActivityIndicatorView: b19ddab2576f805cbe0fb2306cba3476e09a1dea
+  SnapKit: 97b92857e3df3a0c71833cce143274bf6ef8e5eb
+  test_plugin: 6c5b6a3b6c82772b14291ffe952ade0dbfe4d32f
+  webview_flutter_wkwebview: 2e2d318f21a5e036e2c3f26171342e95908bd60a
+
+PODFILE CHECKSUM: 8b1345ff00ee35d834223c3506a1dca154799032
+
+COCOAPODS: 1.11.3
