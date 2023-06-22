@@ -76,6 +76,7 @@ dependencies:
 
 Add following code to MainActivity.java:
   ```java
+    import androidx.annotation.NonNull;
     import io.flutter.embedding.android.FlutterActivity;
     import io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode;
 
@@ -127,3 +128,9 @@ If you want to change the background color of FlutterView:
       SimplePlatformView.setBackgroundColor(Colors.red);
     }
   ```
+
+Used by other plugins:
+
+| Plugins                       |
+| ------------------------------|
+| [simple_google_maps_flutter](https://github.com/XuanTung95/simple_google_maps_flutter) |
