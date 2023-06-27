@@ -1,12 +1,9 @@
-
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:simple_platform_view_example/clone_android_webview_platform.dart';
-import 'package:simple_platform_view_example/expensive_widget.dart';
-import 'package:simple_platform_view_example/clone_google_maps_flutter_android.dart';
+import 'package:simple_platform_view_example/android/clone_android_webview_platform.dart';
+import 'package:simple_platform_view_example/ios/clone_webkit_webview_platform.dart';
+import 'package:simple_platform_view_example/screen/expensive_widget.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class CloneWebviewScreen extends StatefulWidget {
@@ -19,37 +16,31 @@ class CloneWebviewScreen extends StatefulWidget {
 class _CloneWebviewScreenState extends State<CloneWebviewScreen> {
   late WebViewController webViewController;
 
-  static const CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(37.42796133580664, -122.085749655962),
-    zoom: 14.4746,
-  );
-
   @override
   void initState() {
     super.initState();
     /// Replace WebViewPlatform.instance with the modified version
     if (Platform.isAndroid) {
       CloneAndroidWebViewPlatform.registerWith();
+    } else if (Platform.isIOS) {
+      CloneWebKitWebViewPlatform.registerWith();
     }
     webViewController = WebViewController();
     webViewController.loadRequest(Uri.parse("https://google.com"));
     webViewController.setJavaScriptMode(JavaScriptMode.unrestricted);
   }
-
   int count = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Clone Google Map Screen $count"),
+        title: Text("Clone WebView Screen $count"),
       ),
       body: Stack(
         children: [
-          Center(
-            child: SizedBox.expand(
-              child: WebViewWidget(controller: webViewController),
-            ),
+          SizedBox.expand(
+            child: WebViewWidget(controller: webViewController),
           ),
           const ExpensiveWidget(),
           Center(

@@ -28,4 +28,8 @@ abstract class SimplePlatformViewPlatform extends PlatformInterface {
   Future<void> setBackgroundColor(Color color) {
     throw UnimplementedError('setBackgroundColor() has not been implemented.');
   }
+
+  Future<void> restart() {
+    throw UnimplementedError('restart() has not been implemented.');
+  }
 }

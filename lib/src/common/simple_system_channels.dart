@@ -1,3 +1,4 @@
+import 'package:flutter/animation.dart';
 import 'package:flutter/services.dart';
 
 class SimpleSystemChannels {
@@ -6,7 +7,5 @@ class SimpleSystemChannels {
   /// See also:
   ///
   ///  * [PlatformViewsService] for the available operations on this channel.
-  static const MethodChannel platform_views = MethodChannel(
-    'tungpx/simple_platform_views',
-  );
+  static const MethodChannel platformViewsChannel = MethodChannel('tungpx/simple_platform_views');
 }

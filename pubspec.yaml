@@ -1,6 +1,6 @@
 name: simple_platform_view
 description: A Flutter plugin to integrate platform views directly into the Flutter view hierarchy, aiming to provide the best possible performance.
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/XuanTung95/simple_platform_view
 
 environment:
@@ -38,8 +38,8 @@ flutter:
       android:
         package: com.tungpx.platform.view.simple_platform_view
         pluginClass: SimplePlatformViewPlugin
-  #    ios:
-  #      pluginClass: SimplePlatformViewPlugin
+      ios:
+        pluginClass: SimplePlatformViewPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:

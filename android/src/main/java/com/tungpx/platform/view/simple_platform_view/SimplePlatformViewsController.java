@@ -347,6 +347,12 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           embeddedView.clearFocus();
         }
 
+        @Override
+        public void setBackgroundColor(int color) {
+          if (flutterView != null) {
+            flutterView.setBackgroundColor(color);
+          }
+        }
       };
 
   /// Throws an exception if the SDK version is below minSdkVersion.

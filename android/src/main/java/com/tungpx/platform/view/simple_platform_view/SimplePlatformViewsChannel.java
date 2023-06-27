@@ -69,6 +69,13 @@ public class SimplePlatformViewsChannel {
             case "clearFocus":
               clearFocus(call, result);
               break;
+            case "setBackgroundColor":
+              setBackgroundColor(call, result);
+              break;
+            case "hotRestart":
+              // noop
+              result.success(null);
+              break;
             default:
               result.notImplemented();
           }
@@ -210,6 +217,19 @@ public class SimplePlatformViewsChannel {
             result.error("error", detailedExceptionString(exception), null);
           }
         }
+
+        private void setBackgroundColor(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            Object color = call.argument("color");
+            if (color != null) {
+              int value = color instanceof Long ? ((Long) color).intValue() : (int) color;
+              handler.setBackgroundColor(value);
+            }
+            result.success(null);
+          } catch (IllegalStateException exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
       };
 
   /**
@@ -288,6 +308,9 @@ public class SimplePlatformViewsChannel {
 
     /** Clears the focus from the platform view with a give id if it is currently focused. */
     void clearFocus(int viewId);
+
+    /** Set background color for Flutter view */
+    void setBackgroundColor(int color);
   }
 
   /** Request sent from Flutter to create a new platform view. */

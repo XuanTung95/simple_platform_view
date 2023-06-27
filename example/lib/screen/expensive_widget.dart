@@ -32,19 +32,23 @@ class _ExpensiveWidgetState extends State<ExpensiveWidget> with SingleTickerProv
   }
 
   initWidgets() {
-    children = List.generate(40, (index) => Positioned(
-      top: 700 * controller.value + 1 * index,
-      left: 10 * index.toDouble(),
-      child: const FlutterLogo(
-        size: 35,
-      ),
-    ));
+    children = List.generate(100, (index) {
+      int i = index % 50;
+      bool r1 = index < 50;
+      return Positioned(
+        top: 700 * controller.value + 1 * i + (r1 ? 0 : 80),
+        left: 10 * i.toDouble(),
+        child: const FlutterLogo(
+          size: 35,
+        ),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 500,
+      width: 1000,
       height: 1000,
       child: AnimatedBuilder(
         animation: controller,

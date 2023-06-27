@@ -5,8 +5,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:simple_platform_view/simple_platform_view.dart';
-import 'package:simple_platform_view_example/expensive_widget.dart';
-import 'package:simple_platform_view_example/clone_google_maps_flutter_android.dart';
+import 'package:simple_platform_view_example/ios/clone_google_maps_flutter_ios.dart';
+import 'package:simple_platform_view_example/screen/expensive_widget.dart';
+import 'package:simple_platform_view_example/android/clone_google_maps_flutter_android.dart';
 
 class CloneGoogleMapScreen extends StatefulWidget {
   const CloneGoogleMapScreen({Key? key}) : super(key: key);
@@ -28,10 +29,13 @@ class _CloneGoogleMapScreenState extends State<CloneGoogleMapScreen> {
     /// Replace GoogleMapsFlutterPlatform.instance with the modified version
     if (Platform.isAndroid) {
       CloneGoogleMapsFlutterAndroid.registerWith();
+    } else if (Platform.isIOS) {
+      CloneGoogleMapsFlutterIOS.registerWith();
     }
   }
 
   int count = 0;
+  GoogleMapController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -41,21 +45,24 @@ class _CloneGoogleMapScreenState extends State<CloneGoogleMapScreen> {
       ),
       body: Stack(
         children: [
-          const Center(
-            child: SizedBox.expand(
-              child: GoogleMap(
-                initialCameraPosition: _kGooglePlex,
-              ),
+          SizedBox.expand(
+            child: GoogleMap(
+              initialCameraPosition: _kGooglePlex,
+              onMapCreated: (GoogleMapController controller) {
+                print("onMapCreated mapId: ${controller.mapId}");
+                this.controller = controller;
+              }
             ),
           ),
           const ExpensiveWidget(),
           Center(
             child: FloatingActionButton(
               onPressed: () {
-                SimplePlatformView.setBackgroundColor(Colors.green);
+                SimplePlatformView.setBackgroundColor(Colors.red);
                 setState(() {
                   count++;
                 });
+                controller?.moveCamera(CameraUpdate.newLatLng(const LatLng(12.263059, 109.187472)));
               },
               child: const Icon(Icons.abc),
             ),

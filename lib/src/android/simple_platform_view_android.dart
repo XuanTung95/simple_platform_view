@@ -307,6 +307,7 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
       });
       return;
     }
+    /*
     SystemChannels.textInput.invokeMethod<void>(
       'TextInput.setPlatformViewClient',
       <String, dynamic>{'platformViewId': _id},
@@ -321,6 +322,7 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
         return;
       }
     });
+    */
   }
 }
 
@@ -416,7 +418,7 @@ class SimpleAndroidViewController implements AndroidViewController {
 
   Future<void> _sendDisposeMessage() {
     return SimpleSystemChannels
-        .platform_views.invokeMethod<void>('dispose', <String, dynamic>{
+        .platformViewsChannel.invokeMethod<void>('dispose', <String, dynamic>{
       'id': viewId,
     });
   }
@@ -442,14 +444,14 @@ class SimpleAndroidViewController implements AndroidViewController {
         paramsByteData.lengthInBytes,
       );
     }
-    return SimpleSystemChannels.platform_views.invokeMethod<dynamic>('create', args);
+    return SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('create', args);
   }
 
   Future<Size> _sendResizeMessage(Size size) async {
     assert(_state != _AndroidViewState.waitingForSize, 'Android view must have an initial size. View id: $viewId');
     assert(!size.isEmpty);
 
-    final Map<Object?, Object?>? meta = await SimpleSystemChannels.platform_views.invokeMapMethod<Object?, Object?>(
+    final Map<Object?, Object?>? meta = await SimpleSystemChannels.platformViewsChannel.invokeMapMethod<Object?, Object?>(
       'resize',
       <String, dynamic>{
         'id': viewId,
@@ -513,7 +515,7 @@ class SimpleAndroidViewController implements AndroidViewController {
 
     _offset = offset;
 
-    await SimpleSystemChannels.platform_views.invokeMethod<void>(
+    await SimpleSystemChannels.platformViewsChannel.invokeMethod<void>(
       'offset',
       <String, dynamic>{
         'id': viewId,
@@ -531,7 +533,7 @@ class SimpleAndroidViewController implements AndroidViewController {
 
   @override
   Future<void> sendMotionEvent(AndroidMotionEvent event) async {
-    await SimpleSystemChannels.platform_views.invokeMethod<dynamic>(
+    await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>(
       'touch',
       event._asList(viewId),
     );
@@ -590,7 +592,7 @@ class SimpleAndroidViewController implements AndroidViewController {
       return;
     }
 
-    await SimpleSystemChannels.platform_views
+    await SimpleSystemChannels.platformViewsChannel
         .invokeMethod<void>('setDirection', <String, dynamic>{
       'id': viewId,
       'direction': _getAndroidDirection(layoutDirection),
@@ -640,7 +642,7 @@ class SimpleAndroidViewController implements AndroidViewController {
     if (_state != _AndroidViewState.created) {
       return Future<void>.value();
     }
-    return SimpleSystemChannels.platform_views.invokeMethod<void>('clearFocus', viewId);
+    return SimpleSystemChannels.platformViewsChannel.invokeMethod<void>('clearFocus', viewId);
   }
 
   /// Disposes the Android view.

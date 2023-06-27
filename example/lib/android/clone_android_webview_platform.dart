@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:io';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -18,7 +20,9 @@ import 'package:webview_flutter_android/src/weak_reference_utils.dart';
 class CloneAndroidWebViewPlatform extends WebViewPlatform {
   /// Registers this class as the default instance of [WebViewPlatform].
   static void registerWith() {
-    WebViewPlatform.instance = CloneAndroidWebViewPlatform.instance;
+    if (Platform.isAndroid) {
+      WebViewPlatform.instance = CloneAndroidWebViewPlatform.instance;
+    }
   }
 
   static final CloneAndroidWebViewPlatform _instance = CloneAndroidWebViewPlatform._();

@@ -24,9 +24,8 @@ import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.platform.PlatformViewRegistry;
 
 /** SimplePlatformViewPlugin */
-public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware, MethodCallHandler {
+public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
   @Nullable private Lifecycle lifecycle;
-  private MethodChannel channel;
 
   FlutterEngine.EngineLifecycleListener engineListener = new FlutterEngine.EngineLifecycleListener() {
     @Override
@@ -82,8 +81,6 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware, M
 
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
-    channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "tungpx/simple_platform_views_global");
-    channel.setMethodCallHandler(this);
     PlatformViewRegistry viewRegistry = flutterPluginBinding.getPlatformViewRegistry();
     platformViewsController = new SimplePlatformViewsController();
     platformViewsController.attach(flutterPluginBinding.getApplicationContext(), viewRegistry,
@@ -94,32 +91,6 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware, M
   @Override
   public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
     platformViewsController.detach();
-    channel.setMethodCallHandler(null);
-  }
-
-  @Override
-  public void onMethodCall(@NonNull MethodCall call, @NonNull Result result) {
-    if (call.method.equals("setBackgroundColor")) {
-      Object color = call.argument("color");
-      if (color != null) {
-        int value = color instanceof Long ? ((Long) color).intValue() : (int) color;
-        setBackgroundColor(value);
-      }
-      result.success(null);
-    } else {
-      result.notImplemented();
-    }
-  }
-
-  // Set background color for FlutterView
-  private void setBackgroundColor(int color) {
-    if (activity != null) {
-      FlutterView flutterView = getFlutterViewFromActivity(activity);
-      if (flutterView != null) {
-        Log.e("tungpx", "setBackgroundColor " + color);
-        flutterView.setBackgroundColor(color);
-      }
-    }
   }
 
   // ActivityAware

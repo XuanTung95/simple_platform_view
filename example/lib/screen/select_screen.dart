@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'package:simple_platform_view_example/clone_webview_screen.dart';
+import 'package:simple_platform_view_example/screen/clone_webview_screen.dart';
 
 import 'clone_google_map_screen.dart';
 
@@ -15,7 +15,7 @@ class _SelectScreenState extends State<SelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Select test page'),),
+      appBar: AppBar(title: const Text('Select test screen'),),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

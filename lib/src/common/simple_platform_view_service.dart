@@ -8,8 +8,10 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:simple_platform_view/simple_platform_view_method_channel.dart';
 import 'package:simple_platform_view/src/android/simple_platform_view_android.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
+import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
 
 export 'dart:ui' show Offset, Size, TextDirection, VoidCallback;
 
@@ -20,7 +22,7 @@ export 'package:flutter/gestures.dart' show PointerEvent;
 /// This service allows creating and controlling platform-specific views.
 class SimplePlatformViewsService {
   SimplePlatformViewsService._() {
-    SimpleSystemChannels.platform_views.setMethodCallHandler(_onMethodCall);
+    SimpleSystemChannels.platformViewsChannel.setMethodCallHandler(_onMethodCall);
   }
 
   static final SimplePlatformViewsService instance = SimplePlatformViewsService._();
@@ -100,5 +102,39 @@ class SimplePlatformViewsService {
 
     instance.focusCallbacks[id] = onFocus ?? () {};
     return controller;
+  }
+
+  // TODO(amirh): reference the iOS plugin API for registering a UIView factory once it lands.
+  /// This is work in progress, not yet ready to be used, and requires a custom engine build. Creates a controller for a new iOS UIView.
+  ///
+  /// `id` is an unused unique identifier generated with [platformViewsRegistry].
+  ///
+  /// `viewType` is the identifier of the iOS view type to be created, a
+  /// factory for this view type must have been registered on the platform side.
+  /// Platform view factories are typically registered by plugin code.
+  ///
+  /// `onFocus` is a callback that will be invoked when the UIKit view asks to
+  /// get the input focus.
+  /// The `id, `viewType, and `layoutDirection` parameters must not be null.
+  /// If `creationParams` is non null then `creationParamsCodec` must not be null.
+  static SimpleUiKitViewController initUiKitView({
+    required int id,
+    required String viewType,
+    required TextDirection layoutDirection,
+    dynamic creationParams,
+    MessageCodec<dynamic>? creationParamsCodec,
+    VoidCallback? onFocus,
+  }) {
+    assert(creationParams == null || creationParamsCodec != null);
+    // TODO(amirh): pass layoutDirection once the system channel supports it.
+    if (onFocus != null) {
+      instance.focusCallbacks[id] = onFocus;
+    }
+    return SimpleUiKitViewController(id: id,
+        viewType: viewType,
+        layoutDirection: layoutDirection,
+        creationParams: creationParams,
+        creationParamsCodec: creationParamsCodec,
+    );
   }
 }
