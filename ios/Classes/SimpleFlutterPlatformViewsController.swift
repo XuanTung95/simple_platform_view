@@ -10,6 +10,7 @@ class SimpleFlutterPlatformViewsController {
     private var touchInterceptors: [Int64: FlutterTouchInterceptingView] = [:]
     private var flutterViewContainer: SimpleFlutterViewContainer?
     private var flutterViewController: FlutterViewController?
+    private var backgroundColor: UIColor?
     
     func registerViewFactory(_ factory: FlutterPlatformViewFactory, withId factoryId: String, gestureRecognizerBlockingPolicy: FlutterPlatformViewGestureRecognizersBlockingPolicy) {
         let idString = factoryId
@@ -223,15 +224,20 @@ class SimpleFlutterPlatformViewsController {
     
     public func setFlutterViewContainer(_ flutterViewContainer: SimpleFlutterViewContainer) {
         self.flutterViewContainer = flutterViewContainer;
+        if (backgroundColor != nil) {
+            flutterViewContainer.backgroundColor = backgroundColor!;
+        }
     }
     
     // Set background color for FlutterViewContainer
     public func setBackgroundColor(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        if (flutterViewContainer != nil) {
-            let args = call.arguments as? [String: Any] ?? [:];
-            let colorValue: Int64? = args["color"] as? Int64;
-            if (colorValue != nil) {
-                flutterViewContainer?.backgroundColor = getColorFromInt(colorValue!);
+        let args = call.arguments as? [String: Any] ?? [:];
+        let colorValue: Int64? = args["color"] as? Int64;
+        if (colorValue != nil) {
+            let color = getColorFromInt(colorValue!);
+            backgroundColor = color;
+            if (flutterViewContainer != nil) {
+                flutterViewContainer?.backgroundColor = color;
             }
         }
         result(nil);
