@@ -28,3 +28,6 @@ migrate_working_dir/
 .dart_tool/
 .packages
 build/
+images/demo_video.gif
+images/Screenshot_1.jpg
+images/Screenshot_2.png
