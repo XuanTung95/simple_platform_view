@@ -168,6 +168,7 @@ While the cellular signal bar (the icon on the status bar) is animating, the fra
 It returns to 60fps once the animation is complete or when the icon is not displayed ([#115036](https://github.com/flutter/flutter/issues/115036)).
 
 **Change the background color**
+
 If you want to change the background color of FlutterView:
 
   ```dart

@@ -20,7 +20,6 @@ class FlutterTouchInterceptingView: UIView {
         super.init(frame: CGRect.zero)
         let forwardingRecognizer = ForwardingGestureRecognizer(target: self, platformViewsController: platformViewsController)
         self.delayingRecognizer = DelayingGestureRecognizer(target: self, action: nil, forwardingRecognizer: forwardingRecognizer)
-        embeddedView.frame = frame
         self.isMultipleTouchEnabled = true
         
         self.addGestureRecognizer(self.delayingRecognizer)

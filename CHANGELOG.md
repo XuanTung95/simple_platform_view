@@ -5,3 +5,7 @@
 ## [0.0.2] - (2023-Jun-27)
 
 * Add support for iOS
+
+## [0.0.3] - (2023-Jun-28)
+
+* Fix wrong map init position on iOS
