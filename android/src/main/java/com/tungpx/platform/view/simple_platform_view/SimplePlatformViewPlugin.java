@@ -22,6 +22,7 @@ import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.platform.PlatformViewRegistry;
+import io.flutter.view.TextureRegistry;
 
 /** SimplePlatformViewPlugin */
 public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
@@ -82,9 +83,10 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
     PlatformViewRegistry viewRegistry = flutterPluginBinding.getPlatformViewRegistry();
+    TextureRegistry textureRegistry = flutterPluginBinding.getTextureRegistry();
     platformViewsController = new SimplePlatformViewsController();
-    platformViewsController.attach(flutterPluginBinding.getApplicationContext(), viewRegistry,
-            flutterPluginBinding.getBinaryMessenger());
+    platformViewsController.attach(flutterPluginBinding.getApplicationContext(), textureRegistry,
+            viewRegistry, flutterPluginBinding.getBinaryMessenger());
     flutterPluginBinding.getFlutterEngine().addEngineLifecycleListener(engineListener);
   }
 

@@ -92,12 +92,18 @@ public class SimplePlatformViewsChannel {
             final boolean hybridFallback =
                     createArgs.containsKey("hybridFallback")
                             && (boolean) createArgs.get("hybridFallback");
-            final PlatformViewCreationRequest.RequestedDisplayMode displayMode =
+            final boolean useVirtualDisplay =
+                    createArgs.containsKey("useVirtualDisplay")
+                            && (boolean) createArgs.get("useVirtualDisplay");
+            PlatformViewCreationRequest.RequestedDisplayMode displayMode =
                     hybridFallback
                             ? PlatformViewCreationRequest.RequestedDisplayMode
                             .TEXTURE_WITH_HYBRID_FALLBACK
                             : PlatformViewCreationRequest.RequestedDisplayMode
                             .TEXTURE_WITH_VIRTUAL_FALLBACK;
+            if (useVirtualDisplay) {
+              displayMode = PlatformViewCreationRequest.RequestedDisplayMode.VIRTUAL_ONLY;
+            }
             final PlatformViewCreationRequest request =
                     new PlatformViewCreationRequest(
                             (int) createArgs.get("id"),
@@ -109,8 +115,12 @@ public class SimplePlatformViewsChannel {
                             (int) createArgs.get("direction"),
                             displayMode,
                             additionalParams);
-            handler.createForOpaqueHybridComposition(request);
-            result.success(null);
+            long textureId = handler.createForOpaqueHybridComposition(request);
+            if (textureId >= 0) {
+              result.success(textureId);
+            } else {
+              result.success(null);
+            }
           } catch (IllegalStateException exception) {
             result.error("error", detailedExceptionString(exception), null);
           }
@@ -272,7 +282,7 @@ public class SimplePlatformViewsChannel {
      *
      * @param request The metadata sent from the framework.
      */
-    void createForOpaqueHybridComposition(@NonNull PlatformViewCreationRequest request);
+    long createForOpaqueHybridComposition(@NonNull PlatformViewCreationRequest request);
 
     /** The Flutter application would like to dispose of an existing Android {@code View}. */
     void dispose(int viewId);
@@ -323,6 +333,8 @@ public class SimplePlatformViewsChannel {
       TEXTURE_WITH_HYBRID_FALLBACK,
       /** Use Hybrid Composition in all cases. */
       HYBRID_ONLY,
+      /** Use Virtual display in all cases. */
+      VIRTUAL_ONLY
     }
 
     /** The ID of the platform view as seen by the Flutter side. */

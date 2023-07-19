@@ -67,6 +67,7 @@ class SimpleAndroidView extends StatefulWidget {
     this.creationParams,
     this.creationParamsCodec,
     this.clipBehavior = Clip.hardEdge,
+    this.useVirtualDisplay = false,
   }) : assert(creationParams == null || creationParamsCodec != null);
 
   /// The unique identifier for Android view type to be embedded by this widget.
@@ -180,6 +181,9 @@ class SimpleAndroidView extends StatefulWidget {
   /// Defaults to [Clip.hardEdge], and must not be null.
   final Clip clipBehavior;
 
+  /// Prefer using Virtual display mode
+  final bool useVirtualDisplay;
+
   @override
   State<SimpleAndroidView> createState() => _SimpleAndroidViewState();
 }
@@ -208,7 +212,7 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
       ),
     );
     return CustomPaint(
-      painter: _platformViewCreated ? ClearBackgroundPainter() : null,
+      painter: _platformViewCreated && _controller.textureId == null ? ClearBackgroundPainter() : null,
       child: androidView,
     );
   }
@@ -280,6 +284,7 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
       onFocus: () {
         _focusNode!.requestFocus();
       },
+      useVirtualDisplay: widget.useVirtualDisplay,
     );
     _controller.addOnPlatformViewCreatedListener((int id) {
       setState(() {
@@ -375,6 +380,7 @@ class SimpleAndroidViewController implements AndroidViewController {
     required TextDirection layoutDirection,
     dynamic creationParams,
     MessageCodec<dynamic>? creationParamsCodec,
+    this.useVirtualDisplay = false,
   })  : assert(creationParams == null || creationParamsCodec != null),
         _viewType = viewType,
         _layoutDirection = layoutDirection,
@@ -401,6 +407,8 @@ class SimpleAndroidViewController implements AndroidViewController {
 
   final List<PlatformViewCreatedCallback> _platformViewCreatedCallbacks =
   <PlatformViewCreatedCallback>[];
+
+  final bool useVirtualDisplay;
 
   static int _getAndroidDirection(TextDirection direction) {
     switch (direction) {
@@ -435,6 +443,7 @@ class SimpleAndroidViewController implements AndroidViewController {
       'height': size.height,
       if (position != null) 'left': position.dx,
       if (position != null) 'top': position.dy,
+      if (useVirtualDisplay) 'useVirtualDisplay': true,
     };
     if (_creationParams != null) {
       final ByteData paramsByteData = _creationParams!.codec.encodeMessage(_creationParams!.data)!;
@@ -444,7 +453,10 @@ class SimpleAndroidViewController implements AndroidViewController {
         paramsByteData.lengthInBytes,
       );
     }
-    return SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('create', args);
+    final textureId = await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('create', args);
+    if (textureId is int && textureId >= 0) {
+      _textureId = textureId;
+    }
   }
 
   Future<Size> _sendResizeMessage(Size size) async {
@@ -525,8 +537,10 @@ class SimpleAndroidViewController implements AndroidViewController {
     );
   }
 
+  int? _textureId;
+
   @override
-  int? get textureId => null;
+  int? get textureId => _textureId;
 
   @override
   bool get requiresViewComposition => false;

@@ -4,7 +4,6 @@ import static android.view.MotionEvent.PointerCoords;
 import static android.view.MotionEvent.PointerProperties;
 
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.Context;
 import android.content.MutableContextWrapper;
 import android.os.Build;
@@ -24,15 +23,18 @@ import io.flutter.embedding.android.MotionEventTracker;
 import io.flutter.embedding.engine.mutatorsstack.*;
 import io.flutter.embedding.engine.renderer.FlutterRenderer;
 import io.flutter.plugin.common.BinaryMessenger;
+import io.flutter.plugin.editing.TextInputPlugin;
 import io.flutter.plugin.platform.PlatformView;
 import io.flutter.plugin.platform.PlatformViewFactory;
 import io.flutter.plugin.platform.PlatformViewRegistry;
 import io.flutter.plugin.platform.PlatformViewsAccessibilityDelegate;
 import io.flutter.view.AccessibilityBridge;
+import io.flutter.view.TextureRegistry;
+import com.tungpx.platform.view.simple_platform_view.SimplePlatformViewsChannel.PlatformViewCreationRequest.RequestedDisplayMode;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -55,8 +57,28 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
   private PlatformViewRegistry registry;
 
+  // The texture registry maintaining the textures into which the embedded views will be rendered.
+  @Nullable private TextureRegistry textureRegistry;
+
+  @Nullable private TextInputPlugin textInputPlugin;
+
   // The system channel used to communicate with the framework about platform views.
   private SimplePlatformViewsChannel platformViewsChannel;
+
+  // The accessibility bridge to which accessibility events form the platform views will be
+  // dispatched.
+  private final SimpleAccessibilityEventsDelegate accessibilityEventsDelegate;
+
+  // TODO(mattcarroll): Refactor overall platform views to facilitate testing and then make
+  // this private. This is visible as a hack to facilitate testing. This was deemed the least
+  // bad option at the time of writing.
+  @VisibleForTesting /* package */ final HashMap<Integer, SimpleVirtualDisplayController> vdControllers;
+
+  // Maps a virtual display's context to the embedded view hosted in this virtual display.
+  // Since each virtual display has it's unique context this allows associating any view with the
+  // platform view that
+  // it is associated with(e.g if a platform view creates other views in the same virtual display.
+  @VisibleForTesting /* package */ final HashMap<Context, View> contextToEmbeddedView;
 
   // The platform views.
   private final SparseArray<PlatformView> platformViews;
@@ -91,13 +113,19 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       new SimplePlatformViewsChannel.SimplePlatformViewsHandler() {
 
         @Override
-        public void createForOpaqueHybridComposition(
+        public long createForOpaqueHybridComposition(
             @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
           ensureValidRequest(request);
           final int viewId = request.viewId;
           if (viewWrappers.get(viewId) != null) {
             throw new IllegalStateException(
                 "Trying to create an already created platform view, view id: " + viewId);
+          }
+
+          if (textureRegistry == null) {
+            throw new IllegalStateException(
+                    "Texture registry is null. This means that platform views controller was detached, view id: "
+                            + viewId);
           }
 
           if (flutterView == null) {
@@ -114,69 +142,14 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
                 "The Android view returned from PlatformView#getView() was already added to a parent view.");
           }
 
-          configureForOpaqueHybridComposition(platformView, request);
-        }
+          boolean useVirtualDisplay = request.displayMode == RequestedDisplayMode.VIRTUAL_ONLY && textureRegistry != null;
 
-        private void configureForOpaqueHybridComposition(
-            @NonNull PlatformView platformView,
-            @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
-          Log.i(TAG, "Hosting opaque view in view hierarchy for platform view: " + request.viewId);
-
-          final int physicalWidth = toPhysicalPixels(request.logicalWidth);
-          final int physicalHeight = toPhysicalPixels(request.logicalHeight);
-          SimplePlatformViewWrapper viewWrapper;
-          viewWrapper = new SimplePlatformViewWrapper(context);
-          // viewWrapper.setTouchProcessor(androidTouchProcessor);
-
-          final FrameLayout.LayoutParams viewWrapperLayoutParams =
-              new FrameLayout.LayoutParams(physicalWidth, physicalHeight);
-
-          // Size and position the view wrapper.
-          final int physicalTop = toPhysicalPixels(request.logicalTop);
-          final int physicalLeft = toPhysicalPixels(request.logicalLeft);
-          viewWrapperLayoutParams.topMargin = physicalTop;
-          viewWrapperLayoutParams.leftMargin = physicalLeft;
-          viewWrapper.setLayoutParams(viewWrapperLayoutParams);
-
-          // Size the embedded view.
-          final View embeddedView = platformView.getView();
-          embeddedView.setLayoutParams(new FrameLayout.LayoutParams(physicalWidth, physicalHeight));
-
-          // Accessibility in the embedded view is initially disabled because if a Flutter app
-          // disabled accessibility in the first frame, the embedding won't receive an update to
-          // disable accessibility since the embedding never received an update to enable it.
-          // The AccessibilityBridge keeps track of the accessibility nodes, and handles the deltas
-          // when the framework sends a new a11y tree to the embedding.
-          // To prevent races, the framework populate the SemanticsNode after the platform view has
-          // been created.
-          embeddedView.setImportantForAccessibility(
-              View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-
-          // Add the embedded view to the wrapper.
-          viewWrapper.addView(embeddedView);
-
-          // Listen for focus changed in any subview, so the framework is notified when the platform
-          // view is focused.
-          viewWrapper.setOnDescendantFocusChangeListener(
-              (v, hasFocus) -> {
-                if (hasFocus) {
-                  platformViewsChannel.invokeViewFocused(request.viewId);
-                }
-              });
-          insertNewOpaqueHCView(flutterView, viewWrapper);
-          viewWrappers.append(request.viewId, viewWrapper);
-        }
-
-        private void insertNewOpaqueHCView(
-            FlutterView flutterView, SimplePlatformViewWrapper viewWrapper) {
-          int index = 0;
-          for (int i = 0; i < flutterView.getChildCount(); i++) {
-            View child = flutterView.getChildAt(i);
-            if (child instanceof SimplePlatformViewWrapper) {
-              index = i + 1;
-            }
+          if (useVirtualDisplay) {
+            return configureForVirtualDisplay(platformView, request);
           }
-          flutterView.addView(viewWrapper, index);
+
+          configureForOpaqueHybridComposition(platformView, request);
+          return -1;
         }
 
         @Override
@@ -186,6 +159,16 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             Log.e(TAG, "Disposing unknown platform view with id: " + viewId);
             return;
           }
+          if (platformView.getView() != null) {
+            final View embeddedView = platformView.getView();
+            final ViewGroup pvParent = (ViewGroup) embeddedView.getParent();
+            if (pvParent != null) {
+              // Eagerly remove the embedded view from the PlatformViewWrapper.
+              // Without this call, we see some crashes because removing the view
+              // is used as a signal to stop processing.
+              pvParent.removeView(embeddedView);
+            }
+          }
           platformViews.remove(viewId);
 
           try {
@@ -193,7 +176,16 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           } catch (RuntimeException exception) {
             Log.e(TAG, "Disposing platform view threw an exception", exception);
           }
-
+          if (usesVirtualDisplay(viewId)) {
+            final SimpleVirtualDisplayController vdController = vdControllers.get(viewId);
+            final View embeddedView = vdController.getView();
+            if (embeddedView != null) {
+              contextToEmbeddedView.remove(embeddedView.getContext());
+            }
+            vdController.dispose();
+            vdControllers.remove(viewId);
+            return;
+          }
           // The platform view is displayed using a TextureLayer and is inserted in the view
           // hierarchy.
           final SimplePlatformViewWrapper viewWrapper = viewWrappers.get(viewId);
@@ -258,11 +250,49 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           final int physicalHeight = toPhysicalPixels(request.newLogicalHeight);
           final int viewId = request.viewId;
 
+          if (usesVirtualDisplay(viewId)) {
+            final float originalDisplayDensity = getDisplayDensity();
+            final SimpleVirtualDisplayController vdController = vdControllers.get(viewId);
+            // Resizing involved moving the platform view to a new virtual display. Doing so
+            // potentially results in losing an active input connection. To make sure we preserve
+            // the input connection when resizing we lock it here and unlock after the resize is
+            // complete.
+            lockInputConnection(vdController);
+            vdController.resize(
+                    physicalWidth,
+                    physicalHeight,
+                    () -> {
+                      unlockInputConnection(vdController);
+                      // Converting back to logic pixels requires a context, which may no longer be
+                      // available. If that happens, assume the same logic/physical relationship as
+                      // was present when the request arrived.
+                      final float displayDensity =
+                              context == null ? originalDisplayDensity : getDisplayDensity();
+                      onComplete.run(
+                              new SimplePlatformViewsChannel.PlatformViewBufferSize(
+                                      toLogicalPixels(vdController.getBufferWidth(), displayDensity),
+                                      toLogicalPixels(vdController.getBufferHeight(), displayDensity)));
+                    });
+            return;
+          }
+
           final PlatformView platformView = platformViews.get(viewId);
           final SimplePlatformViewWrapper viewWrapper = viewWrappers.get(viewId);
           if (platformView == null || viewWrapper == null) {
             Log.e(TAG, "Resizing unknown platform view with id: " + viewId);
             return;
+          }
+          // Resize the buffer only when the current buffer size is smaller than the new size.
+          // This is required to prevent a situation when smooth keyboard animation
+          // resizes the texture too often, such that the GPU and the platform thread don't agree on
+          // the
+          // timing of the new size.
+          // Resizing the texture causes pixel stretching since the size of the GL texture used in
+          // the engine
+          // is set by the framework, but the texture buffer size is set by the platform down below.
+          if (physicalWidth > viewWrapper.getBufferWidth()
+                  || physicalHeight > viewWrapper.getBufferHeight()) {
+            viewWrapper.setBufferSize(physicalWidth, physicalHeight);
           }
 
           final ViewGroup.LayoutParams viewWrapperLayoutParams = viewWrapper.getLayoutParams();
@@ -287,6 +317,13 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
         public void onTouch(@NonNull SimplePlatformViewsChannel.PlatformViewTouch touch) {
           final int viewId = touch.viewId;
           final float density = context.getResources().getDisplayMetrics().density;
+
+          if (usesVirtualDisplay(viewId)) {
+            final SimpleVirtualDisplayController vdController = vdControllers.get(viewId);
+            final MotionEvent event = toMotionEvent(density, touch, true);
+            vdController.dispatchTouchEvent(event);
+            return;
+          }
 
           final PlatformView platformView = platformViews.get(viewId);
           if (platformView == null) {
@@ -316,13 +353,17 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
           View embeddedView;
 
-          final PlatformView platformView = platformViews.get(viewId);
-          if (platformView == null) {
-            Log.e(TAG, "Setting direction to an unknown view with id: " + viewId);
-            return;
+          if (usesVirtualDisplay(viewId)) {
+            final SimpleVirtualDisplayController controller = vdControllers.get(viewId);
+            embeddedView = controller.getView();
+          } else {
+            final PlatformView platformView = platformViews.get(viewId);
+            if (platformView == null) {
+              Log.e(TAG, "Setting direction to an unknown view with id: " + viewId);
+              return;
+            }
+            embeddedView = platformView.getView();
           }
-          embeddedView = platformView.getView();
-
           if (embeddedView == null) {
             Log.e(TAG, "Setting direction to a null view with id: " + viewId);
             return;
@@ -334,12 +375,17 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
         public void clearFocus(int viewId) {
           View embeddedView;
 
-          final PlatformView platformView = platformViews.get(viewId);
-          if (platformView == null) {
-            Log.e(TAG, "Clearing focus on an unknown view with id: " + viewId);
-            return;
+          if (usesVirtualDisplay(viewId)) {
+            final SimpleVirtualDisplayController controller = vdControllers.get(viewId);
+            embeddedView = controller.getView();
+          } else {
+            final PlatformView platformView = platformViews.get(viewId);
+            if (platformView == null) {
+              Log.e(TAG, "Clearing focus on an unknown view with id: " + viewId);
+              return;
+            }
+            embeddedView = platformView.getView();
           }
-          embeddedView = platformView.getView();
           if (embeddedView == null) {
             Log.e(TAG, "Clearing focus on a null view with id: " + viewId);
             return;
@@ -412,6 +458,120 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     platformViews.put(request.viewId, platformView);
     maybeInvokeOnFlutterViewAttached(platformView);
     return platformView;
+  }
+
+  // Configures the view for Virtual Display mode, returning the associated texture ID.
+  private long configureForVirtualDisplay(
+          @NonNull PlatformView platformView,
+          @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
+    // This mode adds the view to a virtual display, which is wired up to a GL texture that
+    // is composed by the Flutter engine.
+
+    // API level 20 is required to use VirtualDisplay#setSurface.
+    enforceMinimumAndroidApiVersion(20);
+
+    Log.i(TAG, "Hosting view in a virtual display for platform view: " + request.viewId);
+
+    final TextureRegistry.SurfaceTextureEntry textureEntry = textureRegistry.createSurfaceTexture();
+    final int physicalWidth = toPhysicalPixels(request.logicalWidth);
+    final int physicalHeight = toPhysicalPixels(request.logicalHeight);
+    final SimpleVirtualDisplayController vdController =
+            SimpleVirtualDisplayController.create(
+                    context,
+                    accessibilityEventsDelegate,
+                    platformView,
+                    textureEntry,
+                    physicalWidth,
+                    physicalHeight,
+                    request.viewId,
+                    null,
+                    (view, hasFocus) -> {
+                      if (hasFocus) {
+                        platformViewsChannel.invokeViewFocused(request.viewId);
+                      }
+                    });
+
+    if (vdController == null) {
+      throw new IllegalStateException(
+              "Failed creating virtual display for a "
+                      + request.viewType
+                      + " with id: "
+                      + request.viewId);
+    }
+
+    // The embedded view doesn't need to be sized in Virtual Display mode because the
+    // virtual display itself is sized.
+
+    vdControllers.put(request.viewId, vdController);
+    final View embeddedView = platformView.getView();
+    contextToEmbeddedView.put(embeddedView.getContext(), embeddedView);
+
+    return textureEntry.id();
+  }
+
+  private void configureForOpaqueHybridComposition(
+          @NonNull PlatformView platformView,
+          @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
+    Log.i(TAG, "Hosting opaque view in view hierarchy for platform view: " + request.viewId);
+
+    final int physicalWidth = toPhysicalPixels(request.logicalWidth);
+    final int physicalHeight = toPhysicalPixels(request.logicalHeight);
+    SimplePlatformViewWrapper viewWrapper;
+    viewWrapper = new SimplePlatformViewWrapper(context);
+    // viewWrapper.setTouchProcessor(androidTouchProcessor);
+    viewWrapper.setBufferSize(physicalWidth, physicalHeight);
+
+    final FrameLayout.LayoutParams viewWrapperLayoutParams =
+            new FrameLayout.LayoutParams(physicalWidth, physicalHeight);
+
+    // Size and position the view wrapper.
+    final int physicalTop = toPhysicalPixels(request.logicalTop);
+    final int physicalLeft = toPhysicalPixels(request.logicalLeft);
+    viewWrapperLayoutParams.topMargin = physicalTop;
+    viewWrapperLayoutParams.leftMargin = physicalLeft;
+    viewWrapper.setLayoutParams(viewWrapperLayoutParams);
+
+    // Size the embedded view.
+    final View embeddedView = platformView.getView();
+    embeddedView.setLayoutParams(new FrameLayout.LayoutParams(physicalWidth, physicalHeight));
+
+    // Accessibility in the embedded view is initially disabled because if a Flutter app
+    // disabled accessibility in the first frame, the embedding won't receive an update to
+    // disable accessibility since the embedding never received an update to enable it.
+    // The AccessibilityBridge keeps track of the accessibility nodes, and handles the deltas
+    // when the framework sends a new a11y tree to the embedding.
+    // To prevent races, the framework populate the SemanticsNode after the platform view has
+    // been created.
+    embeddedView.setImportantForAccessibility(
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+
+    // Add the embedded view to the wrapper.
+    viewWrapper.addView(embeddedView);
+
+    // Listen for focus changed in any subview, so the framework is notified when the platform
+    // view is focused.
+    viewWrapper.setOnDescendantFocusChangeListener(
+            (v, hasFocus) -> {
+              if (hasFocus) {
+                platformViewsChannel.invokeViewFocused(request.viewId);
+              }
+            });
+    insertNewOpaqueHCView(flutterView, viewWrapper);
+    viewWrappers.append(request.viewId, viewWrapper);
+
+    maybeInvokeOnFlutterViewAttached(platformView);
+  }
+
+  private void insertNewOpaqueHCView(
+          FlutterView flutterView, SimplePlatformViewWrapper viewWrapper) {
+    int index = 0;
+    for (int i = 0; i < flutterView.getChildCount(); i++) {
+      View child = flutterView.getChildAt(i);
+      if (child instanceof SimplePlatformViewWrapper) {
+        index = i + 1;
+      }
+    }
+    flutterView.addView(viewWrapper, index);
   }
 
   // Retrieve PlatformViewFactory from PlatformViewRegistry using reflection
@@ -496,6 +656,9 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
   }
 
   public SimplePlatformViewsController() {
+    vdControllers = new HashMap<>();
+    accessibilityEventsDelegate = new SimpleAccessibilityEventsDelegate();
+    contextToEmbeddedView = new HashMap<>();
     viewWrappers = new SparseArray<>();
     platformViews = new SparseArray<>();
     platformViewParent = new SparseArray<>();
@@ -511,6 +674,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
    */
   public void attach(
       @Nullable Context context,
+      @NonNull TextureRegistry textureRegistry,
       PlatformViewRegistry platformViewRegistry,
       @NonNull BinaryMessenger dartExecutor) {
     if (this.context != null) {
@@ -519,6 +683,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
               + "attach was called while the PlatformViewsController was already attached.");
     }
     this.context = context;
+    this.textureRegistry = textureRegistry;
     registry = platformViewRegistry;
     platformViewsChannel = new SimplePlatformViewsChannel(dartExecutor);
     platformViewsChannel.setPlatformViewsHandler(channelHandler);
@@ -539,6 +704,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     }
     platformViewsChannel = null;
     context = null;
+    textureRegistry = null;
   }
 
   /**
@@ -608,10 +774,53 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
   @Override
   public void attachAccessibilityBridge(@NonNull AccessibilityBridge accessibilityBridge) {
+    accessibilityEventsDelegate.setAccessibilityBridge(accessibilityBridge);
   }
 
   @Override
   public void detachAccessibilityBridge() {
+    accessibilityEventsDelegate.setAccessibilityBridge(null);
+  }
+
+  /**
+   * Attaches this controller to a text input plugin.
+   *
+   * <p>While a text input plugin is available, the platform views controller interacts with it to
+   * facilitate delegation of text input connections to platform views.
+   *
+   * <p>A platform views controller should be attached to a text input plugin whenever it is
+   * possible for the Flutter framework to receive text input.
+   */
+  public void attachTextInputPlugin(@NonNull TextInputPlugin textInputPlugin) {
+    this.textInputPlugin = textInputPlugin;
+  }
+
+  /** Detaches this controller from the currently attached text input plugin. */
+  public void detachTextInputPlugin() {
+    textInputPlugin = null;
+  }
+
+  /**
+   * Returns true if Flutter should perform input connection proxying for the view.
+   *
+   * <p>If the view is a platform view managed by this platform views controller returns true. Else
+   * if the view was created in a platform view's VD, delegates the decision to the platform view's
+   * {@link View#checkInputConnectionProxy(View)} method. Else returns false.
+   */
+  public boolean checkInputConnectionProxy(@Nullable View view) {
+    // View can be null on some devices
+    // See: https://github.com/flutter/flutter/issues/36517
+    if (view == null) {
+      return false;
+    }
+    if (!contextToEmbeddedView.containsKey(view.getContext())) {
+      return false;
+    }
+    View platformView = contextToEmbeddedView.get(view.getContext());
+    if (platformView == view) {
+      return true;
+    }
+    return platformView.checkInputConnectionProxy(view);
   }
 
   public PlatformViewRegistry getRegistry() {
@@ -625,6 +834,11 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
   @Override
   @Nullable
   public View getPlatformViewById(int viewId) {
+    if (usesVirtualDisplay(viewId)) {
+      final SimpleVirtualDisplayController controller = vdControllers.get(viewId);
+      return controller.getView();
+    }
+
     final PlatformView platformView = platformViews.get(viewId);
     if (platformView == null) {
       return null;
@@ -634,7 +848,23 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
   @Override
   public boolean usesVirtualDisplay(int id) {
-    return false;
+    return vdControllers.containsKey(id);
+  }
+
+  private void lockInputConnection(@NonNull SimpleVirtualDisplayController controller) {
+    if (textInputPlugin == null) {
+      return;
+    }
+    textInputPlugin.lockPlatformViewInputConnection();
+    controller.onInputConnectionLocked();
+  }
+
+  private void unlockInputConnection(@NonNull SimpleVirtualDisplayController controller) {
+    if (textInputPlugin == null) {
+      return;
+    }
+    textInputPlugin.unlockPlatformViewInputConnection();
+    controller.onInputConnectionUnlocked();
   }
 
   private static boolean validateDirection(int direction) {
@@ -673,7 +903,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
   @SuppressWarnings("unchecked")
   private static PointerCoords parsePointerCoords(Object rawCoords, float density) {
     List<Object> coordsList = (List<Object>) rawCoords;
-    PointerCoords coords = new PointerCoords();
+    PointerCoords coords = new MotionEvent.PointerCoords();
     coords.orientation = (float) (double) coordsList.get(0);
     coords.pressure = (float) (double) coordsList.get(1);
     coords.size = (float) (double) coordsList.get(2);

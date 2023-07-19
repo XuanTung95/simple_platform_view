@@ -89,6 +89,7 @@ class SimplePlatformViewsService {
     dynamic creationParams,
     MessageCodec<dynamic>? creationParamsCodec,
     VoidCallback? onFocus,
+    bool useVirtualDisplay = false,
   }) {
     assert(creationParams == null || creationParamsCodec != null);
 
@@ -98,6 +99,7 @@ class SimplePlatformViewsService {
       layoutDirection: layoutDirection,
       creationParams: creationParams,
       creationParamsCodec: creationParamsCodec,
+      useVirtualDisplay: useVirtualDisplay,
     );
 
     instance.focusCallbacks[id] = onFocus ?? () {};

@@ -7,6 +7,7 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver;
@@ -24,11 +25,15 @@ import io.flutter.util.ViewUtils;
  */
 class SimplePlatformViewWrapper extends FrameLayout {
 
-  protected int prevLeft;
-  protected int prevTop;
-  protected int left;
-  protected int top;
-  protected AndroidTouchProcessor touchProcessor;
+  private int prevLeft;
+  private int prevTop;
+  private int left;
+  private int top;
+  private int bufferWidth;
+  private int bufferHeight;
+  private SurfaceTexture tx;
+  private Surface surface;
+  private AndroidTouchProcessor touchProcessor;
 
   @Nullable @VisibleForTesting ViewTreeObserver.OnGlobalFocusChangeListener activeFocusListener;
 
@@ -65,8 +70,37 @@ class SimplePlatformViewWrapper extends FrameLayout {
     top = params.topMargin;
   }
 
-  public void release() {
+  /**
+   * Sets the size of the image buffer.
+   *
+   * @param width The width of the screen buffer.
+   * @param height The height of the screen buffer.
+   */
+  public void setBufferSize(int width, int height) {
+    bufferWidth = width;
+    bufferHeight = height;
+    if (tx != null) {
+      tx.setDefaultBufferSize(width, height);
+    }
+  }
 
+  /** Returns the image buffer width. */
+  public int getBufferWidth() {
+    return bufferWidth;
+  }
+
+  /** Returns the image buffer height. */
+  public int getBufferHeight() {
+    return bufferHeight;
+  }
+
+  /** Releases the surface. */
+  public void release() {
+    tx = null;
+    if (surface != null) {
+      surface.release();
+      surface = null;
+    }
   }
 
   @Override
