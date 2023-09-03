@@ -1,32 +1,51 @@
 package com.tungpx.platform.view.simple_platform_view;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.graphics.Matrix;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
 
-import io.flutter.Log;
 import io.flutter.embedding.android.FlutterView;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
 import io.flutter.embedding.engine.plugins.lifecycle.FlutterLifecycleAdapter;
-import io.flutter.plugin.common.MethodCall;
-import io.flutter.plugin.common.MethodChannel;
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
-import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.platform.PlatformViewRegistry;
 import io.flutter.view.TextureRegistry;
-
 /** SimplePlatformViewPlugin */
+@Keep
 public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
   @Nullable private Lifecycle lifecycle;
+
+  @Nullable Activity activity;
+
+  @SuppressLint("StaticFieldLeak")
+  private final static SimplePlatformViewsController platformViewsController = new SimplePlatformViewsController();
+
+  /** Called from dart */
+  public static void setOffsetGlobal(int id, double top, double left, long ts) {
+    platformViewsController.offset(id, top, left, ts);
+  }
+
+  /** Called from dart */
+  public static void setTransformGlobal(int id, double scaleX, double scaleY) {
+    if (scaleX == 1.0 && scaleY == 1.0) {
+      platformViewsController.setTransform(id, null);
+    } else {
+      Matrix matrix = new Matrix();
+      matrix.setScale((float) scaleX, (float) scaleY);
+      platformViewsController.setTransform(id, matrix);
+    }
+  }
 
   FlutterEngine.EngineLifecycleListener engineListener = new FlutterEngine.EngineLifecycleListener() {
     @Override
@@ -74,20 +93,15 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
     }
   };
 
-  @Nullable Activity activity;
-
-  private SimplePlatformViewsController platformViewsController;
-
-  // static private PlatformViewRegistryImpl platformViewRegistry = new PlatformViewRegistryImpl();
-
   @Override
   public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
     PlatformViewRegistry viewRegistry = flutterPluginBinding.getPlatformViewRegistry();
     TextureRegistry textureRegistry = flutterPluginBinding.getTextureRegistry();
-    platformViewsController = new SimplePlatformViewsController();
-    platformViewsController.attach(flutterPluginBinding.getApplicationContext(), textureRegistry,
+    FlutterEngine flutterEngine = flutterPluginBinding.getFlutterEngine();
+    flutterEngine.addEngineLifecycleListener(engineListener);
+    platformViewsController.attach(flutterPluginBinding.getApplicationContext(),
+            flutterEngine, textureRegistry,
             viewRegistry, flutterPluginBinding.getBinaryMessenger());
-    flutterPluginBinding.getFlutterEngine().addEngineLifecycleListener(engineListener);
   }
 
   @Override
@@ -137,7 +151,7 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
   }
 
   @Override
-  public void onReattachedToActivityForConfigChanges(ActivityPluginBinding binding) {
+  public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
     onAttachedToActivity(binding);
   }
 

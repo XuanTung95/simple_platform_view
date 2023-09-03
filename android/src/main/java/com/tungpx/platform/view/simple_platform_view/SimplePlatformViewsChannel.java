@@ -169,7 +169,9 @@ public class SimplePlatformViewsChannel {
             handler.offset(
                 (int) offsetArgs.get("id"),
                 (double) offsetArgs.get("top"),
-                (double) offsetArgs.get("left"));
+                (double) offsetArgs.get("left"),
+                (long) offsetArgs.get("ts")
+            );
             result.success(null);
           } catch (IllegalStateException exception) {
             result.error("error", detailedExceptionString(exception), null);
@@ -300,7 +302,7 @@ public class SimplePlatformViewsChannel {
     /**
      * The Flutter application would like to change the offset of an existing Android {@code View}.
      */
-    void offset(int viewId, double top, double left);
+    void offset(int viewId, double top, double left, long ts);
 
     /**
      * The user touched a platform view within Flutter.

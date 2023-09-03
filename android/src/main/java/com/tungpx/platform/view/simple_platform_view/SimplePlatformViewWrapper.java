@@ -2,13 +2,17 @@ package com.tungpx.platform.view.simple_platform_view;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityEvent;
@@ -23,7 +27,7 @@ import io.flutter.util.ViewUtils;
  * Base class for wraps a platform view to intercept gestures and project this view onto a {@link
  * SurfaceTexture}.
  */
-class SimplePlatformViewWrapper extends FrameLayout {
+public class SimplePlatformViewWrapper extends FrameLayout {
 
   private int prevLeft;
   private int prevTop;
@@ -34,6 +38,7 @@ class SimplePlatformViewWrapper extends FrameLayout {
   private SurfaceTexture tx;
   private Surface surface;
   private AndroidTouchProcessor touchProcessor;
+  private Matrix matrix;
 
   @Nullable @VisibleForTesting ViewTreeObserver.OnGlobalFocusChangeListener activeFocusListener;
 
@@ -47,6 +52,37 @@ class SimplePlatformViewWrapper extends FrameLayout {
 
   public SimplePlatformViewWrapper(Context context, AttributeSet attrs, int defStyle) {
     super(context, attrs, defStyle);
+  }
+
+  public void setMatrix(Matrix value) {
+    matrix = value;
+    shouldUpdateSize();
+  }
+
+  void getMatrixScale(float[] scale) {
+    if (matrix != null) {
+      float[] matrixValues = new float[9];
+      matrix.getValues(matrixValues);
+      scale[0] = matrixValues[Matrix.MSCALE_X];
+      scale[1] = matrixValues[Matrix.MSCALE_Y];
+      return;
+    }
+    scale[0] = 1.0f;
+    scale[1] = 1.0f;
+  }
+
+  @Override
+  public void dispatchDraw(Canvas canvas) {
+    Matrix currMatrix = matrix;
+    if (currMatrix != null) {
+      // Apply the transforms on the child canvas
+      canvas.save();
+      canvas.concat(currMatrix);
+      super.dispatchDraw(canvas);
+      canvas.restore();
+    } else {
+      super.dispatchDraw(canvas);
+    }
   }
 
   /**
@@ -81,6 +117,53 @@ class SimplePlatformViewWrapper extends FrameLayout {
     bufferHeight = height;
     if (tx != null) {
       tx.setDefaultBufferSize(width, height);
+    }
+  }
+
+  private void updateViewSize() {
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    if (matrix != null) {
+      float[] scale = new float[2];
+      getMatrixScale(scale);
+      scaleX = scale[0];
+      scaleY = scale[1];
+    }
+    if (getChildCount() == 1) {
+      View child = getChildAt(0);
+      ViewGroup.LayoutParams childParams = child.getLayoutParams();
+      ViewGroup.LayoutParams params = getLayoutParams();
+      if (params instanceof FrameLayout.LayoutParams) {
+        FrameLayout.LayoutParams mParams = (FrameLayout.LayoutParams) params;
+        int width = childParams.width;
+        int height = childParams.height;
+        if (scaleX != 1.0f) {
+          width = Math.round(width * scaleX);
+        }
+        if (scaleY != 1.0f) {
+          height = Math.round(height * scaleY);
+        }
+        if (width != mParams.width || height != mParams.height) {
+          mParams.width = width;
+          mParams.height = height;
+          setLayoutParams(mParams);
+        }
+      }
+    }
+  }
+
+  public void shouldUpdateSize() {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      updateViewSize();
+    } else {
+      final Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+          updateViewSize();
+        }
+      };
+      Handler mainHandler = new Handler(Looper.getMainLooper());
+      mainHandler.post(runnable);
     }
   }
 
