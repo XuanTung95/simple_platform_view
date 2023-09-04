@@ -264,10 +264,13 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           if (viewWrappers.size() == 0 && viewWrapper != null) {
             // no external view present, should revert image view
             externalViewsContainer.setVisibility(View.GONE);
-            flutterView.revertImageView(new Runnable() {
-              @Override
-              public void run() {}
-            });
+            if (isViewSynchronizationAvailable()) {
+              flutterView.revertImageView(new Runnable() {
+                @Override
+                public void run() {
+                }
+              });
+            }
           }
         }
 
@@ -633,6 +636,9 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       }
     }
     externalViewsContainer.addView(viewWrapper, index);
+    if (externalViewsContainer.getVisibility() != View.VISIBLE && !isViewSynchronizationAvailable()) {
+      externalViewsContainer.setVisibility(View.VISIBLE);
+    }
   }
 
   // Retrieve PlatformViewFactory from PlatformViewRegistry using reflection
