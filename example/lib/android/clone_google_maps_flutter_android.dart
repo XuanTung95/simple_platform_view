@@ -56,6 +56,9 @@ enum AndroidMapRenderer {
 
 /// An implementation of [GoogleMapsFlutterPlatform] for Android.
 class CloneGoogleMapsFlutterAndroid extends GoogleMapsFlutterPlatform {
+
+  static bool useVirtualDisplay = false;
+
   /// Registers the Android implementation of GoogleMapsFlutterPlatform.
   static void registerWith() {
     GoogleMapsFlutterPlatform.instance = CloneGoogleMapsFlutterAndroid.instance;
@@ -622,6 +625,7 @@ class CloneGoogleMapsFlutterAndroid extends GoogleMapsFlutterPlatform {
         gestureRecognizers: widgetConfiguration.gestureRecognizers,
         creationParams: creationParams,
         creationParamsCodec: const StandardMessageCodec(),
+        useVirtualDisplay: useVirtualDisplay,
       );
     }
   }
