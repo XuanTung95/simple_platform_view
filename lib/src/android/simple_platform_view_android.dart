@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:jni/jni.dart';
 import 'package:simple_platform_view/src/common/clear_background_painter.dart';
 import 'package:simple_platform_view/src/common/simple_platform_view_service.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
@@ -217,6 +218,12 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
     );
   }
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(handlePostFrameCallback);
+  }
+
   void _initializeOnce() {
     if (_initialized) {
       return;
@@ -329,6 +336,20 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
     });
     */
   }
+
+  void handlePostFrameCallback(Duration timeStamp) {
+    if (mounted) {
+      if (_controller is SimpleAndroidViewController) {
+          final transform = findNearestTransform(context);
+          (_controller as SimpleAndroidViewController).setTransform(transform?.transform);
+      }
+      WidgetsBinding.instance.addPostFrameCallback(handlePostFrameCallback);
+    }
+  }
+
+  Transform? findNearestTransform(BuildContext context) {
+    return context.findAncestorWidgetOfExactType<Transform>();
+  }
 }
 
 class _SimpleAndroidPlatformView extends LeafRenderObjectWidget {
@@ -346,7 +367,7 @@ class _SimpleAndroidPlatformView extends LeafRenderObjectWidget {
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      RenderAndroidView(
+      RenderSimpleAndroidView(
         viewController: controller,
         hitTestBehavior: hitTestBehavior,
         gestureRecognizers: gestureRecognizers,
@@ -354,7 +375,7 @@ class _SimpleAndroidPlatformView extends LeafRenderObjectWidget {
       );
 
   @override
-  void updateRenderObject(BuildContext context, RenderAndroidView renderObject) {
+  void updateRenderObject(BuildContext context, RenderSimpleAndroidView renderObject) {
     renderObject.controller = controller;
     renderObject.hitTestBehavior = hitTestBehavior;
     renderObject.updateGestureRecognizers(gestureRecognizers);
@@ -409,6 +430,10 @@ class SimpleAndroidViewController implements AndroidViewController {
   <PlatformViewCreatedCallback>[];
 
   final bool useVirtualDisplay;
+
+  static JClass? _pluginClass;
+
+  Matrix4? _transform;
 
   static int _getAndroidDirection(TextDirection direction) {
     switch (direction) {
@@ -526,15 +551,49 @@ class SimpleAndroidViewController implements AndroidViewController {
     }
 
     _offset = offset;
+    sendOffsetJni(viewId, offset.dy, offset.dx, DateTime.now().millisecondsSinceEpoch);
+  }
 
-    await SimpleSystemChannels.platformViewsChannel.invokeMethod<void>(
-      'offset',
-      <String, dynamic>{
-        'id': viewId,
-        'top': offset.dy,
-        'left': offset.dx,
-      },
-    );
+  void setTransform(Matrix4? value) {
+    if (_transform != value) {
+      sendTransformJni(viewId, value);
+      _transform = value;
+    }
+  }
+
+  JClass _getPluginClass() {
+    _pluginClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
+    return _pluginClass!;
+  }
+
+  void sendTransformJni(int id, Matrix4? matrix) {
+    final cls = _getPluginClass();
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    if (matrix != null) {
+      final storage = matrix.storage;
+      scaleX = storage[0];
+      scaleY = storage[5];
+    }
+    cls.callStaticMethodByName<void>("setTransformGlobal",
+      "(IDD)V",
+      [
+        id,
+        scaleX,
+        scaleY,
+      ]);
+  }
+
+  void sendOffsetJni(int id, double top, double left, int ts) {
+    final cls = _getPluginClass();
+    cls.callStaticMethodByName<void>("setOffsetGlobal",
+      "(IDDJ)V",
+      [
+        id,
+        top,
+        left,
+        ts
+      ],);
   }
 
   int? _textureId;
@@ -877,4 +936,216 @@ class _AndroidMotionEventConverter {
 
   bool isSinglePointerAction(PointerEvent event) =>
       event is! PointerDownEvent && event is! PointerUpEvent;
+}
+
+class RenderSimpleAndroidView extends PlatformViewRenderBox {
+  /// Creates a render object for an Android view.
+  RenderSimpleAndroidView({
+    required AndroidViewController viewController,
+    required PlatformViewHitTestBehavior hitTestBehavior,
+    required Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers,
+    Clip clipBehavior = Clip.hardEdge,
+  }) : _viewController = viewController,
+        _clipBehavior = clipBehavior,
+        super(controller: viewController, hitTestBehavior: hitTestBehavior, gestureRecognizers: gestureRecognizers) {
+    _viewController.pointTransformer = (Offset offset) => globalToLocal(offset);
+    updateGestureRecognizers(gestureRecognizers);
+    _viewController.addOnPlatformViewCreatedListener(_onPlatformViewCreated);
+    this.hitTestBehavior = hitTestBehavior;
+    // _setOffset();
+    WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
+  }
+
+  void handlePreRenderCallback() {
+    if (attached) {
+      final pos = localToGlobal(Offset.zero);
+      _viewController.setOffset(pos);
+      WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
+    }
+  }
+
+  _PlatformViewState _state = _PlatformViewState.uninitialized;
+
+  Size? _currentTextureSize;
+
+  bool _isDisposed = false;
+
+  /// The Android view controller for the Android view associated with this render object.
+  @override
+  AndroidViewController get controller => _viewController;
+
+  AndroidViewController _viewController;
+
+  /// Sets a new Android view controller.
+  @override
+  set controller(AndroidViewController controller) {
+    assert(!_isDisposed);
+    if (_viewController == controller) {
+      return;
+    }
+    _viewController.removeOnPlatformViewCreatedListener(_onPlatformViewCreated);
+    super.controller = controller;
+    _viewController = controller;
+    _viewController.pointTransformer = (Offset offset) => globalToLocal(offset);
+    _sizePlatformView();
+    if (_viewController.isCreated) {
+      markNeedsSemanticsUpdate();
+    }
+    _viewController.addOnPlatformViewCreatedListener(_onPlatformViewCreated);
+  }
+
+  /// {@macro flutter.material.Material.clipBehavior}
+  ///
+  /// Defaults to [Clip.hardEdge], and must not be null.
+  Clip get clipBehavior => _clipBehavior;
+  Clip _clipBehavior = Clip.hardEdge;
+  set clipBehavior(Clip value) {
+    if (value != _clipBehavior) {
+      _clipBehavior = value;
+      markNeedsPaint();
+      markNeedsSemanticsUpdate();
+    }
+  }
+
+  void _onPlatformViewCreated(int id) {
+    assert(!_isDisposed);
+    markNeedsSemanticsUpdate();
+  }
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  bool get alwaysNeedsCompositing => true;
+
+  @override
+  bool get isRepaintBoundary => false;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    return constraints.biggest;
+  }
+
+  @override
+  void performResize() {
+    super.performResize();
+    _sizePlatformView();
+  }
+
+  Future<void> _sizePlatformView() async {
+    // Android virtual displays cannot have a zero size.
+    // Trying to size it to 0 crashes the app, which was happening when starting the app
+    // with a locked screen (see: https://github.com/flutter/flutter/issues/20456).
+    if (_state == _PlatformViewState.resizing || size.isEmpty) {
+      return;
+    }
+
+    _state = _PlatformViewState.resizing;
+    markNeedsPaint();
+
+    Size targetSize;
+    do {
+      targetSize = size;
+      _currentTextureSize = await _viewController.setSize(targetSize);
+      if (_isDisposed) {
+        return;
+      }
+      // We've resized the platform view to targetSize, but it is possible that
+      // while we were resizing the render object's size was changed again.
+      // In that case we will resize the platform view again.
+    } while (size != targetSize);
+
+    _state = _PlatformViewState.ready;
+    markNeedsPaint();
+  }
+
+  // Sets the offset of the underlying platform view on the platform side.
+  //
+  // This allows the Android native view to draw the a11y highlights in the same
+  // location on the screen as the platform view widget in the Flutter framework.
+  //
+  // It also allows platform code to obtain the correct position of the Android
+  // native view on the screen.
+  void _setOffset() {
+    SchedulerBinding.instance.addPostFrameCallback((_) async {
+      if (!_isDisposed) {
+        if (attached) {
+          final pos = localToGlobal(Offset.zero);
+          _viewController.setOffset(pos);
+        }
+        // Schedule a new post frame callback.
+        _setOffset();
+      }
+    });
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (_viewController.textureId == null || _currentTextureSize == null) {
+      return;
+    }
+
+    // As resizing the Android view happens asynchronously we don't know exactly when is a
+    // texture frame with the new size is ready for consumption.
+    // TextureLayer is unaware of the texture frame's size and always maps it to the
+    // specified rect. If the rect we provide has a different size from the current texture frame's
+    // size the texture frame will be scaled.
+    // To prevent unwanted scaling artifacts while resizing, clip the texture.
+    // This guarantees that the size of the texture frame we're painting is always
+    // _currentAndroidTextureSize.
+    final bool isTextureLargerThanWidget = _currentTextureSize!.width > size.width ||
+        _currentTextureSize!.height > size.height;
+    if (isTextureLargerThanWidget && clipBehavior != Clip.none) {
+      _clipRectLayer.layer = context.pushClipRect(
+        true,
+        offset,
+        offset & size,
+        _paintTexture,
+        clipBehavior: clipBehavior,
+        oldLayer: _clipRectLayer.layer,
+      );
+      return;
+    }
+    _clipRectLayer.layer = null;
+    _paintTexture(context, offset);
+  }
+
+  final LayerHandle<ClipRectLayer> _clipRectLayer = LayerHandle<ClipRectLayer>();
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _clipRectLayer.layer = null;
+    _viewController.removeOnPlatformViewCreatedListener(_onPlatformViewCreated);
+    super.dispose();
+  }
+
+  void _paintTexture(PaintingContext context, Offset offset) {
+    if (_currentTextureSize == null) {
+      return;
+    }
+
+    context.addLayer(TextureLayer(
+      rect: offset & _currentTextureSize!,
+      textureId: _viewController.textureId!,
+    ));
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    // Don't call the super implementation since `platformViewId` should
+    // be set only when the platform view is created, but the concept of
+    // a "created" platform view belongs to this subclass.
+    config.isSemanticBoundary = true;
+
+    if (_viewController.isCreated) {
+      config.platformViewId = _viewController.viewId;
+    }
+  }
+}
+
+enum _PlatformViewState {
+  uninitialized,
+  resizing,
+  ready,
 }
