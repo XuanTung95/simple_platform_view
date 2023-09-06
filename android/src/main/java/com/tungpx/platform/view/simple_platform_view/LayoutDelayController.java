@@ -23,12 +23,12 @@ public class LayoutDelayController {
         enableViewSync = isAvailable;
     }
 
-    public void registerView(int viewId, View view) {
+    public void registerView(int viewId, View view, LayoutParamHolder param) {
         if (viewItems.containsKey(viewId)) {
             Log.e(TAG, "Already added SimplePlatformView with viewId = " + viewId);
             return;
         }
-        LayoutDelayItem newItem = new LayoutDelayItem(viewId, view, frameRecord);
+        LayoutDelayItem newItem = new LayoutDelayItem(viewId, view, frameRecord, param);
         viewItems.put(viewId, newItem);
     }
 
@@ -47,10 +47,18 @@ public class LayoutDelayController {
         }
     }
 
-    public void onViewOffset(int viewId, long buildEndTime, int top, int left, double orgTop, double orgLeft) {
+    public LayoutParamHolder getParamHolder(int viewId) {
+        LayoutDelayItem item = viewItems.get(viewId);
+        if (item == null) {
+            return null;
+        }
+        return item.param;
+    }
+
+    public void onViewOffset(int viewId, long buildEndTime, double top, double left) {
         for (LayoutDelayItem item : viewItems.values()) {
             if (item.viewId == viewId) {
-                item.onViewOffset(new PositionData(buildEndTime, top, left, orgTop, orgLeft));
+                item.onViewOffset(new PositionData(buildEndTime, top, left));
             }
         }
     }
@@ -65,14 +73,15 @@ public class LayoutDelayController {
         final EngineFrameRecord frameRecord;
         private boolean enableViewSync = false;
         final ConcurrentLinkedQueue<PositionData> positions = new ConcurrentLinkedQueue<>();
-
+        public final LayoutParamHolder param;
         PositionData currPos = null;
         // Image created time
 
-        LayoutDelayItem(int viewId, View view, EngineFrameRecord frameRecord) {
+        LayoutDelayItem(int viewId, View view, EngineFrameRecord frameRecord, LayoutParamHolder param) {
             this.viewId = viewId;
             this.view = view;
             this.frameRecord = frameRecord;
+            this.param = param;
         }
 
         void setViewSyncAvailable(boolean isAvailable) {
@@ -141,11 +150,12 @@ public class LayoutDelayController {
                     return;
                 }
             }
+            this.param.setPosition(pos.left, pos.top);
             ViewGroup.LayoutParams layoutParams = view.getLayoutParams();
             if (layoutParams instanceof FrameLayout.LayoutParams) {
                 final FrameLayout.LayoutParams layout = (FrameLayout.LayoutParams) layoutParams;
-                layout.topMargin = pos.top;
-                layout.leftMargin = pos.left;
+                layout.topMargin = this.param.top();
+                layout.leftMargin = this.param.left();
                 view.setLayoutParams(layout);
                 view.requestLayout();
             } else {
@@ -230,18 +240,14 @@ public class LayoutDelayController {
     }
 
     static class PositionData {
-        final int top;
-        final int left;
+        final double top;
+        final double left;
         final long buildEndTime;
-        final double orgTop;
-        final double orgLeft;
 
-        PositionData(long buildEndTime, int top, int left, double orgTop, double orgLeft) {
+        PositionData(long buildEndTime, double top, double left) {
             this.top = top;
             this.left = left;
             this.buildEndTime = buildEndTime;
-            this.orgTop = orgTop;
-            this.orgLeft = orgLeft;
         }
     }
 }

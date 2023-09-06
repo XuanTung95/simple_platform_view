@@ -292,10 +292,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             Log.e(TAG, "Setting offset for unknown platform view with id: " + viewId);
             return;
           }
-          final int physicalTop = toPhysicalPixels(top);
-          final int physicalLeft = toPhysicalPixels(left);
           frameDelayController.setViewSyncAvailable(isViewSynchronizationAvailable());
-          frameDelayController.onViewOffset(viewId, ts, physicalTop, physicalLeft, top, left);
+          frameDelayController.onViewOffset(viewId, ts, top, left);
         }
 
         @Override
@@ -303,7 +301,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             @NonNull SimplePlatformViewsChannel.PlatformViewResizeRequest request,
             @NonNull SimplePlatformViewsChannel.PlatformViewBufferResized onComplete) {
           final int physicalWidth = toPhysicalPixels(request.newLogicalWidth);
-          final int physicalHeight = toPhysicalPixels(request.newLogicalHeight) + 1;
+          final int physicalHeight = toPhysicalPixels(request.newLogicalHeight);
           final int viewId = request.viewId;
 
           if (usesVirtualDisplay(viewId)) {
@@ -334,10 +332,12 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
           final PlatformView platformView = platformViews.get(viewId);
           final SimplePlatformViewWrapper viewWrapper = viewWrappers.get(viewId);
-          if (platformView == null || viewWrapper == null) {
+          LayoutParamHolder paramHolder = frameDelayController.getParamHolder(viewId);
+          if (platformView == null || viewWrapper == null || paramHolder == null) {
             Log.e(TAG, "Resizing unknown platform view with id: " + viewId);
             return;
           }
+          paramHolder.setSize(request.newLogicalWidth, request.newLogicalHeight);
           // Resize the buffer only when the current buffer size is smaller than the new size.
           // This is required to prevent a situation when smooth keyboard animation
           // resizes the texture too often, such that the GPU and the platform thread don't agree on
@@ -346,21 +346,21 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           // Resizing the texture causes pixel stretching since the size of the GL texture used in
           // the engine
           // is set by the framework, but the texture buffer size is set by the platform down below.
-          if (physicalWidth > viewWrapper.getBufferWidth()
-                  || physicalHeight > viewWrapper.getBufferHeight()) {
-            viewWrapper.setBufferSize(physicalWidth, physicalHeight);
+          if (paramHolder.width() > viewWrapper.getBufferWidth()
+                  || paramHolder.height() > viewWrapper.getBufferHeight()) {
+            viewWrapper.setBufferSize(paramHolder.width(), paramHolder.height());
           }
 
           final ViewGroup.LayoutParams viewWrapperLayoutParams = viewWrapper.getLayoutParams();
-          viewWrapperLayoutParams.width = physicalWidth;
-          viewWrapperLayoutParams.height = physicalHeight;
+          viewWrapperLayoutParams.width = paramHolder.width();
+          viewWrapperLayoutParams.height = paramHolder.height();
           viewWrapper.setLayoutParams(viewWrapperLayoutParams);
 
           final View embeddedView = platformView.getView();
           if (embeddedView != null) {
             final ViewGroup.LayoutParams embeddedViewLayoutParams = embeddedView.getLayoutParams();
-            embeddedViewLayoutParams.width = physicalWidth;
-            embeddedViewLayoutParams.height = physicalHeight;
+            embeddedViewLayoutParams.width = paramHolder.width();
+            embeddedViewLayoutParams.height = paramHolder.height();
             embeddedView.setLayoutParams(embeddedViewLayoutParams);
           }
           viewWrapper.shouldUpdateSize();
@@ -576,26 +576,27 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
     Log.i(TAG, "Hosting opaque view in view hierarchy for platform view: " + request.viewId);
 
-    final int physicalWidth = toPhysicalPixels(request.logicalWidth);
-    final int physicalHeight = toPhysicalPixels(request.logicalHeight) + 1;
     SimplePlatformViewWrapper viewWrapper;
     viewWrapper = new SimplePlatformViewWrapper(context);
+
+    LayoutParamHolder paramHolder = new LayoutParamHolder(getDisplayDensity());
+    paramHolder.setSize(request.logicalWidth, request.logicalHeight);
+    paramHolder.setPosition(request.logicalLeft, request.logicalTop);
+
     // viewWrapper.setTouchProcessor(androidTouchProcessor);
-    viewWrapper.setBufferSize(physicalWidth, physicalHeight);
+    viewWrapper.setBufferSize(paramHolder.width(), paramHolder.height());
 
     final FrameLayout.LayoutParams viewWrapperLayoutParams =
-            new FrameLayout.LayoutParams(physicalWidth, physicalHeight);
+            new FrameLayout.LayoutParams(paramHolder.width(), paramHolder.height());
 
     // Size and position the view wrapper.
-    final int physicalTop = toPhysicalPixels(request.logicalTop);
-    final int physicalLeft = toPhysicalPixels(request.logicalLeft);
-    viewWrapperLayoutParams.topMargin = physicalTop;
-    viewWrapperLayoutParams.leftMargin = physicalLeft;
+    viewWrapperLayoutParams.topMargin = paramHolder.top();
+    viewWrapperLayoutParams.leftMargin = paramHolder.left();
     viewWrapper.setLayoutParams(viewWrapperLayoutParams);
 
     // Size the embedded view.
     final View embeddedView = platformView.getView();
-    embeddedView.setLayoutParams(new FrameLayout.LayoutParams(physicalWidth, physicalHeight));
+    embeddedView.setLayoutParams(new FrameLayout.LayoutParams(paramHolder.width(), paramHolder.height()));
 
     // Accessibility in the embedded view is initially disabled because if a Flutter app
     // disabled accessibility in the first frame, the embedding won't receive an update to
@@ -622,7 +623,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     viewWrappers.append(request.viewId, viewWrapper);
 
     maybeInvokeOnFlutterViewAttached(platformView);
-    frameDelayController.registerView(request.viewId, viewWrapper);
+    frameDelayController.registerView(request.viewId, viewWrapper, paramHolder);
   }
 
   private void insertNewOpaqueHCView(
