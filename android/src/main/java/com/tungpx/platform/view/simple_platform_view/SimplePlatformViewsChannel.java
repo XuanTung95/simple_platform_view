@@ -1,5 +1,7 @@
 package com.tungpx.platform.view.simple_platform_view;
 
+import android.view.InputDevice;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import io.flutter.Log;
@@ -195,7 +197,8 @@ public class SimplePlatformViewsChannel {
                   (float) (double) args.get(10),
                   (int) args.get(11),
                   (int) args.get(12),
-                  (int) args.get(13),
+                  // Fix https://github.com/flutter/flutter/issues/128925
+                  InputDevice.SOURCE_TOUCHSCREEN, // (int) args.get(13),
                   (int) args.get(14),
                   ((Number) args.get(15)).longValue());
 
