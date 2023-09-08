@@ -617,6 +617,10 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             (v, hasFocus) -> {
               if (hasFocus) {
                 platformViewsChannel.invokeViewFocused(request.viewId);
+              } else {
+                if (textInputPlugin != null) {
+                  textInputPlugin.clearPlatformViewClient(request.viewId);
+                }
               }
             });
     insertNewOpaqueHCView(flutterView, viewWrapper);
@@ -661,7 +665,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           return (PlatformViewFactory) getFactoryMethod.invoke(registry, viewType);
         }
       } catch (Exception e) {
-        Log.e(TAG, "Cannot get PlatformViewFactory for type " + viewType + " : " + e.toString());
+        Log.e(TAG, "Cannot get PlatformViewFactory for type " + viewType + " : " + e);
         e.printStackTrace();
       }
     }

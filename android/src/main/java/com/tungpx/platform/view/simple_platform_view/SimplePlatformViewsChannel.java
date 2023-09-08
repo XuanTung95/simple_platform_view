@@ -20,7 +20,7 @@ import java.util.Map;
  * <p>Register a {@link SimplePlatformViewsHandler} to implement the Android side of this channel.
  */
 public class SimplePlatformViewsChannel {
-  private static final String TAG = "PlatformViewsChannel";
+  private static final String TAG = "SimplePlatformViewsChannel";
 
   private final MethodChannel channel;
   private SimplePlatformViewsHandler handler;

@@ -38,7 +38,9 @@ class SimplePlatformViewsService {
         }
         break;
       default:
-        throw UnimplementedError("${call.method} was invoked but isn't implemented by PlatformViewsService");
+        // throw UnimplementedError("${call.method} was invoked but isn't implemented by PlatformViewsService");
+        print("SimplePlatformView: ${call.method} was invoked but isn't implemented by SimplePlatformViewsService");
+        break;
     }
     return Future<void>.value();
   }
