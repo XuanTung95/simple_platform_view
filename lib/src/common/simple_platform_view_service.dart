@@ -3,12 +3,8 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
-import 'package:simple_platform_view/simple_platform_view_method_channel.dart';
 import 'package:simple_platform_view/src/android/simple_platform_view_android.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
 import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
@@ -37,8 +33,8 @@ class SimplePlatformViewsService {
     switch (call.method) {
       case 'viewFocused':
         final int id = call.arguments as int;
-        if (focusCallbacks.containsKey(id)) {
-          focusCallbacks[id]!();
+        if (_focusCallbacks.containsKey(id)) {
+          _focusCallbacks[id]!();
         }
         break;
       default:
@@ -50,7 +46,7 @@ class SimplePlatformViewsService {
   /// Maps platform view IDs to focus callbacks.
   ///
   /// The callbacks are invoked when the platform view asks to be focused.
-  final Map<int, VoidCallback> focusCallbacks = <int, VoidCallback>{};
+  final Map<int, VoidCallback> _focusCallbacks = <int, VoidCallback>{};
 
   /// {@template flutter.services.PlatformViewsService.initAndroidView}
   /// Creates a controller for a new Android view.
@@ -102,7 +98,9 @@ class SimplePlatformViewsService {
       useVirtualDisplay: useVirtualDisplay,
     );
 
-    instance.focusCallbacks[id] = onFocus ?? () {};
+    if (onFocus != null) {
+      instance._focusCallbacks[id] = onFocus;
+    }
     return controller;
   }
 
@@ -130,7 +128,7 @@ class SimplePlatformViewsService {
     assert(creationParams == null || creationParamsCodec != null);
     // TODO(amirh): pass layoutDirection once the system channel supports it.
     if (onFocus != null) {
-      instance.focusCallbacks[id] = onFocus;
+      instance._focusCallbacks[id] = onFocus;
     }
     return SimpleUiKitViewController(id: id,
         viewType: viewType,
@@ -138,5 +136,9 @@ class SimplePlatformViewsService {
         creationParams: creationParams,
         creationParamsCodec: creationParamsCodec,
     );
+  }
+
+  void removeFocusCallbacks(int viewId) {
+    instance._focusCallbacks.remove(viewId);
   }
 }

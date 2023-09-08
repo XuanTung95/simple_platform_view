@@ -667,7 +667,7 @@ class SimpleUiKitViewController implements UiKitViewController {
     _state = _UiKitViewState.disposed;
     _platformViewCreatedCallbacks.clear();
     _debugDisposed = true;
-    SimplePlatformViewsService.instance.focusCallbacks.remove(id);
+    SimplePlatformViewsService.instance.removeFocusCallbacks(id);
     if (state == _UiKitViewState.creating || state == _UiKitViewState.created) {
       await _sendDisposeMessage();
     }

@@ -431,7 +431,7 @@ class SimpleAndroidViewController implements AndroidViewController {
 
   final bool useVirtualDisplay;
 
-  static JClass? _pluginClass;
+  static JClass? _pluginNativeClass;
 
   Matrix4? _transform;
 
@@ -449,8 +449,8 @@ class SimpleAndroidViewController implements AndroidViewController {
     return ((pointerId << 8) & 0xff00) | (action & 0xff);
   }
 
-  Future<void> _sendDisposeMessage() {
-    return SimpleSystemChannels
+  Future<void> _sendDisposeMessage() async {
+    await SimpleSystemChannels
         .platformViewsChannel.invokeMethod<void>('dispose', <String, dynamic>{
       'id': viewId,
     });
@@ -485,7 +485,7 @@ class SimpleAndroidViewController implements AndroidViewController {
   }
 
   Future<Size> _sendResizeMessage(Size size) async {
-    assert(_state != _AndroidViewState.waitingForSize, 'Android view must have an initial size. View id: $viewId');
+    assert(_state != _AndroidViewState.waitingForSize, 'Simple Android view must have an initial size. View id: $viewId');
     assert(!size.isEmpty);
 
     final Map<Object?, Object?>? meta = await SimpleSystemChannels.platformViewsChannel.invokeMapMethod<Object?, Object?>(
@@ -562,8 +562,8 @@ class SimpleAndroidViewController implements AndroidViewController {
   }
 
   JClass _getPluginClass() {
-    _pluginClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
-    return _pluginClass!;
+    _pluginNativeClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
+    return _pluginNativeClass!;
   }
 
   void sendTransformJni(int id, Matrix4? matrix) {
@@ -728,7 +728,7 @@ class SimpleAndroidViewController implements AndroidViewController {
     final _AndroidViewState state = _state;
     _state = _AndroidViewState.disposed;
     _platformViewCreatedCallbacks.clear();
-    SimplePlatformViewsService.instance.focusCallbacks.remove(viewId);
+    SimplePlatformViewsService.instance.removeFocusCallbacks(viewId);
     if (state == _AndroidViewState.creating || state == _AndroidViewState.created) {
       await _sendDisposeMessage();
     }
@@ -938,6 +938,30 @@ class _AndroidMotionEventConverter {
       event is! PointerDownEvent && event is! PointerUpEvent;
 }
 
+/// A render object for an Android view.
+///
+/// Requires Android API level 23 or greater.
+///
+/// [RenderAndroidView] is responsible for sizing, displaying and passing touch events to an
+/// Android [View](https://developer.android.com/reference/android/view/View).
+///
+/// {@template flutter.rendering.RenderAndroidView.layout}
+/// The render object's layout behavior is to fill all available space, the parent of this object must
+/// provide bounded layout constraints.
+/// {@endtemplate}
+///
+/// {@template flutter.rendering.RenderAndroidView.gestures}
+/// The render object participates in Flutter's gesture arenas, and dispatches touch events to the
+/// platform view iff it won the arena. Specific gestures that should be dispatched to the platform
+/// view can be specified with factories in the `gestureRecognizers` constructor parameter or
+/// by calling `updateGestureRecognizers`. If the set of gesture recognizers is empty, the gesture
+/// will be dispatched to the platform view iff it was not claimed by any other gesture recognizer.
+/// {@endtemplate}
+///
+/// See also:
+///
+///  * [AndroidView] which is a widget that is used to show an Android view.
+///  * [PlatformViewsService] which is a service for controlling platform views.
 class RenderSimpleAndroidView extends PlatformViewRenderBox {
   /// Creates a render object for an Android view.
   RenderSimpleAndroidView({
@@ -957,9 +981,10 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
   }
 
   void handlePreRenderCallback() {
-    if (attached) {
-      final pos = localToGlobal(Offset.zero);
-      _viewController.setOffset(pos);
+    if (!_isDisposed) {
+      if (attached) {
+        _viewController.setOffset(localToGlobal(Offset.zero));
+      }
       WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
     }
   }
@@ -1066,6 +1091,7 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
   //
   // It also allows platform code to obtain the correct position of the Android
   // native view on the screen.
+  /*
   void _setOffset() {
     SchedulerBinding.instance.addPostFrameCallback((_) async {
       if (!_isDisposed) {
@@ -1078,6 +1104,7 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
       }
     });
   }
+  */
 
   @override
   void paint(PaintingContext context, Offset offset) {
