@@ -10,6 +10,8 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.media.Image;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
@@ -39,8 +41,10 @@ import io.flutter.view.TextureRegistry;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manages platform views.
@@ -1127,5 +1131,75 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       return flutterImageView.getIsAttachedToRenderer();
     }
     return false;
+  }
+
+  public void reorderViews(int[] newOrder) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      reorderViewsInternal(newOrder);
+    } else {
+      final Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+          reorderViewsInternal(newOrder);
+        }
+      };
+      Handler mainHandler = new Handler(Looper.getMainLooper());
+      mainHandler.post(runnable);
+    }
+  }
+
+  private void reorderViewsInternal(int[] newOrder) {
+    if (externalViewsContainer == null) {
+      Log.w(TAG, "Cannot reorder when externalViewsContainer = null");
+      return;
+    }
+    if (externalViewsContainer.getChildCount() < 2) {
+      return;
+    }
+    if (newOrder.length != externalViewsContainer.getChildCount()) {
+      Log.w(TAG, "Cannot reorder, child count not match " + Arrays.toString(newOrder) + " " + externalViewsContainer.getChildCount());
+      return;
+    }
+    Map<Integer, SimplePlatformViewWrapper> childrenMap = new HashMap<>();
+    List<Integer> currentViewIds = new ArrayList<>();
+    for (int i = 0; i < externalViewsContainer.getChildCount(); i++) {
+      View child = externalViewsContainer.getChildAt(i);
+      if (child instanceof SimplePlatformViewWrapper) {
+        SimplePlatformViewWrapper wrapper = (SimplePlatformViewWrapper) child;
+        int index = viewWrappers.indexOfValue(wrapper);
+        if (index < 0) {
+          Log.e(TAG, "Cannot find view in SimplePlatformViewContainer");
+          return;
+        }
+        int viewId = viewWrappers.keyAt(index);
+        boolean found = false;
+        for (int k : newOrder) {
+          if (k == viewId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          Log.e(TAG, "Not found view id " + viewId);
+          return;
+        }
+        childrenMap.put(viewId, wrapper);
+        currentViewIds.add(viewId);
+      } else {
+        Log.e(TAG, "Child instanceof SimplePlatformViewWrapper is not true");
+        return;
+      }
+    }
+
+    for (int i = 0; i < newOrder.length; i++) {
+      int newId = newOrder[i];
+      int currentId = currentViewIds.get(i);
+
+      if (newId != currentId) {
+        View viewToMove = childrenMap.get(newId);
+        externalViewsContainer.removeView(viewToMove);
+        externalViewsContainer.addView(viewToMove, i);
+      }
+    }
   }
 }

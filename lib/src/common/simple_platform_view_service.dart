@@ -4,10 +4,14 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:jni/jni.dart';
 import 'package:simple_platform_view/src/android/simple_platform_view_android.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
 import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
+import 'plugin_utils.dart';
 
 export 'dart:ui' show Offset, Size, TextDirection, VoidCallback;
 
@@ -24,6 +28,10 @@ class SimplePlatformViewsService {
   static final SimplePlatformViewsService instance = SimplePlatformViewsService._();
 
   int _nextPlatformViewId = 99999;
+  final Set<int> _viewsOrder = <int>{};
+  List<int> _prevViewsOrder = [];
+  bool _waitingRenderCallback = false;
+  static JClass? _pluginNativeClass;
 
   int getNextPlatformViewId() {
     return _nextPlatformViewId++;
@@ -142,5 +150,70 @@ class SimplePlatformViewsService {
 
   void removeFocusCallbacks(int viewId) {
     instance._focusCallbacks.remove(viewId);
+  }
+
+  void reportOnPaint(int viewId) {
+    _viewsOrder.add(viewId);
+    if (!_waitingRenderCallback) {
+      _waitingRenderCallback = true;
+      WidgetsBinding.instance.addPreRenderCallback(() {
+        _waitingRenderCallback = false;
+
+        final orders = _viewsOrder.toList();
+        _viewsOrder.clear();
+
+        if (!listEquals(_prevViewsOrder, orders)) {
+          _prevViewsOrder = orders;
+          if (orders.length < 2) {
+            return;
+          }
+          final array = JArray(jint.type, orders.length);
+          for (int i=0; i < orders.length; i++) {
+            array[i] = orders[i];
+          }
+          final cls = _getPluginClass();
+          cls.callStaticMethodByName<void>("setViewOrderGlobal",
+              "([I)V",
+              [
+                array
+              ]);
+          array.release();
+        }
+      });
+    }
+  }
+
+  JClass _getPluginClass() {
+    _pluginNativeClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
+    return _pluginNativeClass!;
+  }
+
+  void sendTransformJni(int id, Matrix4? matrix) {
+    final cls = _getPluginClass();
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    if (matrix != null) {
+      scaleX = matrix.getScaleX();
+      scaleY = matrix.getScaleY();
+    }
+    cls.callStaticMethodByName<void>("setTransformGlobal",
+        "(IDD)V",
+        [
+          id,
+          scaleX,
+          scaleY,
+        ]);
+  }
+
+  void sendOffsetJni(int id, double top, double left, int ts) {
+    final cls = _getPluginClass();
+    cls.callStaticMethodByName<void>("setOffsetGlobal",
+      "(IDDJ)V",
+      [
+        id,
+        top,
+        left,
+        ts
+      ]);
   }
 }

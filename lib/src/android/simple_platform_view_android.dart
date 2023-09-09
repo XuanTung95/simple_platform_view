@@ -8,6 +8,7 @@ import 'package:jni/jni.dart';
 import 'package:simple_platform_view/src/common/clear_background_painter.dart';
 import 'package:simple_platform_view/src/common/simple_platform_view_service.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
+import '../common/plugin_utils.dart';
 
 /// Embeds an Android view in the Widget hierarchy.
 ///
@@ -221,7 +222,6 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(handlePostFrameCallback);
   }
 
   void _initializeOnce() {
@@ -336,20 +336,6 @@ class _SimpleAndroidViewState extends State<SimpleAndroidView> {
     });
     */
   }
-
-  void handlePostFrameCallback(Duration timeStamp) {
-    if (mounted) {
-      if (_controller is SimpleAndroidViewController) {
-          final transform = findNearestTransform(context);
-          (_controller as SimpleAndroidViewController).setTransform(transform?.transform);
-      }
-      WidgetsBinding.instance.addPostFrameCallback(handlePostFrameCallback);
-    }
-  }
-
-  Transform? findNearestTransform(BuildContext context) {
-    return context.findAncestorWidgetOfExactType<Transform>();
-  }
 }
 
 class _SimpleAndroidPlatformView extends LeafRenderObjectWidget {
@@ -430,8 +416,6 @@ class SimpleAndroidViewController implements AndroidViewController {
   <PlatformViewCreatedCallback>[];
 
   final bool useVirtualDisplay;
-
-  static JClass? _pluginNativeClass;
 
   Matrix4? _transform;
 
@@ -555,45 +539,23 @@ class SimpleAndroidViewController implements AndroidViewController {
   }
 
   void setTransform(Matrix4? value) {
-    if (_transform != value) {
+    if (!isSameScale(value, _transform)) {
       sendTransformJni(viewId, value);
       _transform = value;
     }
   }
 
-  JClass _getPluginClass() {
-    _pluginNativeClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
-    return _pluginNativeClass!;
+  bool isSameScale(Matrix4? o1, Matrix4? o2) {
+    return o1?.getScaleX() == o2?.getScaleX()
+        && o1?.getScaleY() == o2?.getScaleY();
   }
 
   void sendTransformJni(int id, Matrix4? matrix) {
-    final cls = _getPluginClass();
-    double scaleX = 1.0;
-    double scaleY = 1.0;
-    if (matrix != null) {
-      final storage = matrix.storage;
-      scaleX = storage[0];
-      scaleY = storage[5];
-    }
-    cls.callStaticMethodByName<void>("setTransformGlobal",
-      "(IDD)V",
-      [
-        id,
-        scaleX,
-        scaleY,
-      ]);
+    SimplePlatformViewsService.instance.sendTransformJni(id, matrix);
   }
 
   void sendOffsetJni(int id, double top, double left, int ts) {
-    final cls = _getPluginClass();
-    cls.callStaticMethodByName<void>("setOffsetGlobal",
-      "(IDDJ)V",
-      [
-        id,
-        top,
-        left,
-        ts
-      ],);
+    SimplePlatformViewsService.instance.sendOffsetJni(id, top, left, ts);
   }
 
   int? _textureId;
@@ -984,6 +946,10 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
     if (!_isDisposed) {
       if (attached) {
         _viewController.setOffset(localToGlobal(Offset.zero));
+        if (_viewController is SimpleAndroidViewController) {
+          (_viewController as SimpleAndroidViewController)
+              .setTransform(getTransformTo(null));
+        }
       }
       WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
     }
@@ -1108,6 +1074,7 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    SimplePlatformViewsService.instance.reportOnPaint(_viewController.viewId);
     if (_viewController.textureId == null || _currentTextureSize == null) {
       return;
     }

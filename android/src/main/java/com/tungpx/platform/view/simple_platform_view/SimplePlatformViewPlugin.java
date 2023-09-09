@@ -32,6 +32,11 @@ public class SimplePlatformViewPlugin implements FlutterPlugin, ActivityAware {
   private final static SimplePlatformViewsController platformViewsController = new SimplePlatformViewsController();
 
   /** Called from dart */
+  public static void setViewOrderGlobal(int[] orders) {
+    platformViewsController.reorderViews(orders);
+  }
+
+  /** Called from dart */
   public static void setOffsetGlobal(int id, double top, double left, long ts) {
     platformViewsController.offset(id, top, left, ts);
   }
