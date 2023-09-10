@@ -14,13 +14,11 @@ public class LayoutDelayController {
     static final int maxCapacity = 10;
     final ConcurrentHashMap<Integer, LayoutDelayItem> viewItems = new ConcurrentHashMap<>();
     final EngineFrameRecord frameRecord = new EngineFrameRecord();
-    private boolean enableViewSync = false;
 
     void setViewSyncAvailable(boolean isAvailable) {
-        if (enableViewSync && !isAvailable) {
-            // TODO: flush position
+        for (LayoutDelayItem item : viewItems.values()) {
+            item.setViewSyncAvailable(isAvailable);
         }
-        enableViewSync = isAvailable;
     }
 
     public void registerView(int viewId, View view, LayoutParamHolder param) {
@@ -42,7 +40,6 @@ public class LayoutDelayController {
     public void onImageAvailable(long renderTime) {
         frameRecord.onImageAvailable(renderTime);
         for (LayoutDelayItem item : viewItems.values()) {
-            item.setViewSyncAvailable(enableViewSync);
             item.onImageAvailable(renderTime);
         }
     }

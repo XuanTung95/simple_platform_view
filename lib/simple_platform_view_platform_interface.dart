@@ -32,4 +32,17 @@ abstract class SimplePlatformViewPlatform extends PlatformInterface {
   Future<void> restart() {
     throw UnimplementedError('restart() has not been implemented.');
   }
+
+  Future<bool> isUsingImageView() {
+    throw UnimplementedError('isUsingImageView() has not been implemented.');
+  }
+
+  Future<void> convertToImageView() {
+    throw UnimplementedError('convertToImageView() has not been implemented.');
+  }
+
+  Future<void> revertFromImageView() {
+    throw UnimplementedError('revertFromImageView() has not been implemented.');
+  }
+
 }

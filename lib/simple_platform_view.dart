@@ -19,4 +19,17 @@ class SimplePlatformView {
     }
     return SimplePlatformViewPlatform.instance.restart();
   }
+
+  static Future<bool> isUsingImageView() {
+    return SimplePlatformViewPlatform.instance.isUsingImageView();
+  }
+
+  static Future<void> convertToImageView() {
+    return SimplePlatformViewPlatform.instance.convertToImageView();
+  }
+
+  static Future<void> revertFromImageView() {
+    return SimplePlatformViewPlatform.instance.revertFromImageView();
+  }
+
 }

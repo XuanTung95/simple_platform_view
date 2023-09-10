@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.MutableContextWrapper;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.PixelFormat;
 import android.media.Image;
 import android.os.Build;
 import android.os.Handler;
@@ -24,6 +25,7 @@ import androidx.annotation.VisibleForTesting;
 import io.flutter.Log;
 import io.flutter.embedding.android.AndroidTouchProcessor;
 import io.flutter.embedding.android.FlutterImageView;
+import io.flutter.embedding.android.FlutterSurfaceView;
 import io.flutter.embedding.android.FlutterView;
 import io.flutter.embedding.android.MotionEventTracker;
 import io.flutter.embedding.engine.FlutterEngine;
@@ -196,6 +198,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           }
 
           flutterView.convertToImageView();
+          changeSurfaceViewBackgroundMode(false);
           pendingShowViewsContainer = true;
 
           configureForOpaqueHybridComposition(platformView, request);
@@ -457,6 +460,34 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
         @Override
         public void setBackgroundColor(int color) {
           changeBackgroundColor(color);
+        }
+
+        @Override
+        public boolean isUsingImageView() {
+          return isUsingImageViewRenderMode();
+        }
+
+        @Override
+        public void convertToImageView() {
+          if (flutterView != null) {
+            flutterView.convertToImageView();
+            changeSurfaceViewBackgroundMode(false);
+            initExternalViewContainer();
+          }
+        }
+
+        @Override
+        public void revertFromImageView() {
+          if (flutterView != null) {
+            flutterView.revertImageView(new Runnable() {
+              @Override
+              public void run() {
+              }
+            });
+            // To allows external views visible
+            changeSurfaceViewBackgroundMode(true);
+            initExternalViewContainer();
+          }
         }
       };
 
@@ -857,7 +888,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       this.externalViewsContainer = currentContainer;
       boolean isNewImageView = this.flutterImageView != flutterImageView;
       this.flutterImageView = flutterImageView;
-      if (flutterImageView == null) {
+      if (flutterImageView == null || !flutterImageView.getIsAttachedToRenderer()) {
         // place container at the bottom
         if (oldContainerIndex < 0) {
           flutterView.addView(currentContainer, 0);
@@ -1131,6 +1162,37 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       return flutterImageView.getIsAttachedToRenderer();
     }
     return false;
+  }
+
+  private boolean isUsingImageViewRenderMode() {
+    if (flutterView != null) {
+      for (int i=0; i < flutterView.getChildCount(); i++) {
+        View view = flutterView.getChildAt(i);
+        if (view instanceof FlutterImageView) {
+          FlutterImageView imageView = (FlutterImageView) view;
+          return imageView.getIsAttachedToRenderer();
+        }
+      }
+    }
+    return false;
+  }
+
+  private void changeSurfaceViewBackgroundMode(boolean isTransparent) {
+    if (flutterView != null) {
+      for (int i=0; i < flutterView.getChildCount(); i++) {
+        View view = flutterView.getChildAt(i);
+        if (view instanceof FlutterSurfaceView) {
+          FlutterSurfaceView surfaceView = (FlutterSurfaceView) view;
+          if (isTransparent) {
+            surfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);
+            surfaceView.setZOrderOnTop(true);
+          } else {
+            surfaceView.getHolder().setFormat(PixelFormat.OPAQUE);
+            surfaceView.setZOrderOnTop(false);
+          }
+        }
+      }
+    }
   }
 
   public void reorderViews(int[] newOrder) {

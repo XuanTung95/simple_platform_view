@@ -74,6 +74,15 @@ public class SimplePlatformViewsChannel {
             case "setBackgroundColor":
               setBackgroundColor(call, result);
               break;
+            case "isUsingImageView":
+              isUsingImageView(call, result);
+              break;
+            case "convertToImageView":
+              convertToImageView(call, result);
+              break;
+            case "revertFromImageView":
+              revertFromImageView(call, result);
+              break;
             case "hotRestart":
               // noop
               result.success(null);
@@ -245,6 +254,32 @@ public class SimplePlatformViewsChannel {
             result.error("error", detailedExceptionString(exception), null);
           }
         }
+
+        private void isUsingImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            result.success(handler.isUsingImageView());
+          } catch (Exception exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
+
+        private void convertToImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            handler.convertToImageView();
+            result.success(null);
+          } catch (Exception exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
+
+        private void revertFromImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            handler.revertFromImageView();
+            result.success(null);
+          } catch (Exception exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
       };
 
   /**
@@ -326,6 +361,12 @@ public class SimplePlatformViewsChannel {
 
     /** Set background color for Flutter view */
     void setBackgroundColor(int color);
+
+    boolean isUsingImageView();
+
+    void convertToImageView();
+
+    void revertFromImageView();
   }
 
   /** Request sent from Flutter to create a new platform view. */
