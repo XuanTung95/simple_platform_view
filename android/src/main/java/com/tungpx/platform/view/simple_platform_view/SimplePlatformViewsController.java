@@ -1160,7 +1160,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       Log.w(TAG, "Cannot reorder, child count not match " + Arrays.toString(newOrder) + " " + externalViewsContainer.getChildCount());
       return;
     }
-    Map<Integer, SimplePlatformViewWrapper> childrenMap = new HashMap<>();
+
     List<Integer> currentViewIds = new ArrayList<>();
     for (int i = 0; i < externalViewsContainer.getChildCount(); i++) {
       View child = externalViewsContainer.getChildAt(i);
@@ -1183,7 +1183,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           Log.e(TAG, "Not found view id " + viewId);
           return;
         }
-        childrenMap.put(viewId, wrapper);
         currentViewIds.add(viewId);
       } else {
         Log.e(TAG, "Child instanceof SimplePlatformViewWrapper is not true");
@@ -1196,9 +1195,11 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       int currentId = currentViewIds.get(i);
 
       if (newId != currentId) {
-        View viewToMove = childrenMap.get(newId);
+        View viewToMove = viewWrappers.get(newId);
         externalViewsContainer.removeView(viewToMove);
         externalViewsContainer.addView(viewToMove, i);
+        currentViewIds.remove(Integer.valueOf(newId));
+        currentViewIds.add(i, newId);
       }
     }
   }
