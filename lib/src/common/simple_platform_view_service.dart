@@ -156,7 +156,7 @@ class SimplePlatformViewsService {
     _viewsOrder.add(viewId);
     if (!_waitingRenderCallback) {
       _waitingRenderCallback = true;
-      WidgetsBinding.instance.addPreRenderCallback(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         _waitingRenderCallback = false;
 
         final orders = _viewsOrder.toList();

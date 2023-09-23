@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_platform_view_example/android/clone_android_webview_platform.dart';
 import 'package:simple_platform_view_example/ios/clone_webkit_webview_platform.dart';
 import 'package:simple_platform_view_example/screen/expensive_widget.dart';
+import 'package:simple_platform_view_example/screen/select_screen.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class CloneWebviewScreen extends StatefulWidget {
@@ -36,6 +37,11 @@ class _CloneWebviewScreenState extends State<CloneWebviewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Clone WebView Screen $count"),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          switchImageView();
+        },
       ),
       body: Stack(
         children: [

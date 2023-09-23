@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -5,7 +7,9 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:jni/jni.dart';
+import 'package:simple_platform_view/simple_platform_view.dart';
 import 'package:simple_platform_view/src/common/clear_background_painter.dart';
+import 'package:simple_platform_view/src/common/custom_layer.dart';
 import 'package:simple_platform_view/src/common/simple_platform_view_service.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
 import '../common/plugin_utils.dart';
@@ -939,10 +943,10 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
     _viewController.addOnPlatformViewCreatedListener(_onPlatformViewCreated);
     this.hitTestBehavior = hitTestBehavior;
     // _setOffset();
-    WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
+    _layer.addCompositionCallback(handleCompositionCallback);
   }
 
-  void handlePreRenderCallback() {
+  void handleCompositionCallback(_) {
     if (!_isDisposed) {
       if (attached) {
         _viewController.setOffset(localToGlobal(Offset.zero));
@@ -951,7 +955,6 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
               .setTransform(getTransformTo(null));
         }
       }
-      WidgetsBinding.instance.addPreRenderCallback(handlePreRenderCallback);
     }
   }
 
@@ -966,6 +969,8 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
   AndroidViewController get controller => _viewController;
 
   AndroidViewController _viewController;
+
+  final _layer = CustomLayer();
 
   /// Sets a new Android view controller.
   @override
@@ -1074,6 +1079,7 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    context.addLayer(_layer);
     SimplePlatformViewsService.instance.reportOnPaint(_viewController.viewId);
     if (_viewController.textureId == null || _currentTextureSize == null) {
       return;

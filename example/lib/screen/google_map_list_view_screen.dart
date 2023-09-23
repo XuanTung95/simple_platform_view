@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:simple_platform_view_example/android/clone_google_maps_flutter_android.dart';
 import 'package:simple_platform_view_example/ios/clone_google_maps_flutter_ios.dart';
+import 'package:simple_platform_view_example/screen/select_screen.dart';
 
 class GoogleMapListViewScreen extends StatefulWidget {
   const GoogleMapListViewScreen({super.key});
@@ -35,13 +35,14 @@ class _GoogleMapListViewScreenState extends State<GoogleMapListViewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        heroTag: this,
-        onPressed: () {  },
+        onPressed: () {
+          switchImageView();
+        },
       ),
       body: CustomScrollView(
         slivers: [SliverList(delegate: SliverChildBuilderDelegate(
             (context, index) {
-              if (index == 7) {
+              if (index == 15) {
                 return SizedBox(
                   height: 100,
                   width: double.infinity,

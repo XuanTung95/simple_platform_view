@@ -8,6 +8,7 @@ import 'package:simple_platform_view/simple_platform_view.dart';
 import 'package:simple_platform_view_example/ios/clone_google_maps_flutter_ios.dart';
 import 'package:simple_platform_view_example/screen/expensive_widget.dart';
 import 'package:simple_platform_view_example/android/clone_google_maps_flutter_android.dart';
+import 'package:simple_platform_view_example/screen/select_screen.dart';
 
 class CloneGoogleMapScreen extends StatefulWidget {
   const CloneGoogleMapScreen({Key? key}) : super(key: key);
@@ -42,6 +43,11 @@ class _CloneGoogleMapScreenState extends State<CloneGoogleMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Clone Google Map Screen $count"),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          switchImageView();
+        },
       ),
       body: Stack(
         children: [
