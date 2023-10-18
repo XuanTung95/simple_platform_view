@@ -774,7 +774,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
   /** FlutterJNI.OnFrameTimeListener */
   @Override
-  public void onRasterStart(long buildStartTime, long buildEndTime, long rasterStartTime, long currentNanoTime) {
+  public void onRasterStart(long buildStartTime, long buildEndTime, long rasterStartTime) {
+    long currentNanoTime = System.nanoTime();
     frameDelayController.onRasterStart(buildStartTime, buildEndTime, rasterStartTime, currentNanoTime);
   }
 
