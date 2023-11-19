@@ -943,7 +943,6 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
     _viewController.addOnPlatformViewCreatedListener(_onPlatformViewCreated);
     this.hitTestBehavior = hitTestBehavior;
     // _setOffset();
-    _layer.addCompositionCallback(handleCompositionCallback);
   }
 
   void handleCompositionCallback(_) {
@@ -969,8 +968,6 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
   AndroidViewController get controller => _viewController;
 
   AndroidViewController _viewController;
-
-  final _layer = CustomLayer();
 
   /// Sets a new Android view controller.
   @override
@@ -1079,7 +1076,9 @@ class RenderSimpleAndroidView extends PlatformViewRenderBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    context.addLayer(_layer);
+    final layer = CustomLayer();
+    layer.addCompositionCallback(handleCompositionCallback);
+    context.addLayer(layer);
     SimplePlatformViewsService.instance.reportOnPaint(_viewController.viewId);
     if (_viewController.textureId == null || _currentTextureSize == null) {
       return;

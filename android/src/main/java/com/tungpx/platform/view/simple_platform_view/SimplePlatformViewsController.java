@@ -658,6 +658,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
                 }
               }
             });
+    // Set default background color
+    viewWrapper.setBackgroundColor(Color.WHITE);
     insertNewOpaqueHCView(flutterView, viewWrapper);
     viewWrappers.append(request.viewId, viewWrapper);
 
