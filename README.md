@@ -89,6 +89,20 @@ To use this plugin, just replace `AndroidView` widget with `SimpleAndroidView`:
     }
   ```
 
+If you are using `SimpleAndroidView` inside a scroll view, add this to your `MaterialApp` to prevent issues with `StretchingOverscrollIndicator`:
+
+  ```dart
+    import 'package:simple_platform_view/simple_platform_view.dart';
+
+    @override
+    Widget build(BuildContext context) {
+      return MaterialApp(
+        // Fix StretchingOverscrollIndicator issues
+        scrollBehavior: SimplePlatformViewScrollBehavior(),
+      );
+    }
+  ```
+
 If you are trying to use this with other plugin, clone their plugin and replace the implementation with `SimpleAndroidView`. See Example for more detail.
 
 | Demo                       |

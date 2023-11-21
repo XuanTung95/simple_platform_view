@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:simple_platform_view/simple_platform_view_platform_interface.dart';
 export 'src/android/simple_platform_view_android.dart';
+export 'src/android/simple_platform_view_scroll_behavior.dart';
 
 class SimplePlatformView {
 
