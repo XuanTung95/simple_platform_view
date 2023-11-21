@@ -31,7 +31,7 @@ class _TestDepthState extends State<TestDepth> {
     if (Platform.isAndroid) {
       CloneAndroidWebViewPlatform.registerWith();
     } else if (Platform.isIOS) {
-      CloneWebKitWebViewPlatform.registerWith();
+      // CloneWebKitWebViewPlatform.registerWith();
     }
     controllers = List.generate(5, (index) {
       WebViewController webViewController = WebViewController();

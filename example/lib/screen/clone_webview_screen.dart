@@ -24,24 +24,18 @@ class _CloneWebviewScreenState extends State<CloneWebviewScreen> {
     if (Platform.isAndroid) {
       CloneAndroidWebViewPlatform.registerWith();
     } else if (Platform.isIOS) {
-      CloneWebKitWebViewPlatform.registerWith();
+      // CloneWebKitWebViewPlatform.registerWith();
     }
     webViewController = WebViewController();
     webViewController.loadRequest(Uri.parse("https://google.com"));
     webViewController.setJavaScriptMode(JavaScriptMode.unrestricted);
   }
-  int count = 0;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Clone WebView Screen $count"),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          switchImageView();
-        },
+        title: Text("Clone WebView Screen"),
       ),
       body: Stack(
         children: [
@@ -51,10 +45,8 @@ class _CloneWebviewScreenState extends State<CloneWebviewScreen> {
           const ExpensiveWidget(),
           Center(
             child: FloatingActionButton(
+              heroTag: "webview",
               onPressed: () {
-                setState(() {
-                  count++;
-                });
                 webViewController.loadRequest(Uri.parse("https://google.com"));
               },
               child: const Icon(Icons.abc),

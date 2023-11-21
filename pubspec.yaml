@@ -39,8 +39,8 @@ flutter:
       android:
         package: com.tungpx.platform.view.simple_platform_view
         pluginClass: SimplePlatformViewPlugin
-      ios:
-        pluginClass: SimplePlatformViewPlugin
+  #    ios:
+  #      pluginClass: SimplePlatformViewPlugin
 
   # To add assets to your plugin package, add an assets section, like this:
   # assets:

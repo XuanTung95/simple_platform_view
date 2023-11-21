@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:jni/jni.dart';
 import 'package:simple_platform_view/src/android/simple_platform_view_android.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
-import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
+// import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
 import 'plugin_utils.dart';
 
 export 'dart:ui' show Offset, Size, TextDirection, VoidCallback;
@@ -127,26 +127,26 @@ class SimplePlatformViewsService {
   /// get the input focus.
   /// The `id, `viewType, and `layoutDirection` parameters must not be null.
   /// If `creationParams` is non null then `creationParamsCodec` must not be null.
-  static SimpleUiKitViewController initUiKitView({
-    required int id,
-    required String viewType,
-    required TextDirection layoutDirection,
-    dynamic creationParams,
-    MessageCodec<dynamic>? creationParamsCodec,
-    VoidCallback? onFocus,
-  }) {
-    assert(creationParams == null || creationParamsCodec != null);
-    // TODO(amirh): pass layoutDirection once the system channel supports it.
-    if (onFocus != null) {
-      instance._focusCallbacks[id] = onFocus;
-    }
-    return SimpleUiKitViewController(id: id,
-        viewType: viewType,
-        layoutDirection: layoutDirection,
-        creationParams: creationParams,
-        creationParamsCodec: creationParamsCodec,
-    );
-  }
+  // static SimpleUiKitViewController initUiKitView({
+  //   required int id,
+  //   required String viewType,
+  //   required TextDirection layoutDirection,
+  //   dynamic creationParams,
+  //   MessageCodec<dynamic>? creationParamsCodec,
+  //   VoidCallback? onFocus,
+  // }) {
+  //   assert(creationParams == null || creationParamsCodec != null);
+  //   // TODO(amirh): pass layoutDirection once the system channel supports it.
+  //   if (onFocus != null) {
+  //     instance._focusCallbacks[id] = onFocus;
+  //   }
+  //   return SimpleUiKitViewController(id: id,
+  //       viewType: viewType,
+  //       layoutDirection: layoutDirection,
+  //       creationParams: creationParams,
+  //       creationParamsCodec: creationParamsCodec,
+  //   );
+  // }
 
   void removeFocusCallbacks(int viewId) {
     instance._focusCallbacks.remove(viewId);

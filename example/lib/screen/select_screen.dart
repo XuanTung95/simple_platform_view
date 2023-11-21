@@ -1,5 +1,6 @@
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:simple_platform_view/simple_platform_view.dart';
 import 'package:simple_platform_view_example/android/clone_google_maps_flutter_android.dart';
 import 'package:simple_platform_view_example/screen/clone_webview_screen.dart';
@@ -16,7 +17,16 @@ class SelectScreen extends StatefulWidget {
   State<SelectScreen> createState() => _SelectScreenState();
 }
 
+GoogleMapsFlutterPlatform? defaultMapInstance;
+
 class _SelectScreenState extends State<SelectScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    defaultMapInstance ??= GoogleMapsFlutterPlatform.instance;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,14 +37,20 @@ class _SelectScreenState extends State<SelectScreen> {
           children: [
             ElevatedButton(onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) {
-                return const CloneGoogleMapScreen();
+                return CloneGoogleMapScreen(useOriginalMap: true, title: 'Original Google Map screen',);
+              }));
+            }, child: const Text('Original Google Map screen'),
+            ),
+            ElevatedButton(onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) {
+                return CloneGoogleMapScreen(title: 'Google Map screen',);
               }));
               }, child: const Text('Google Map screen'),
             ),
             ElevatedButton(onPressed: () async {
               CloneGoogleMapsFlutterAndroid.useVirtualDisplay = true;
               await Navigator.push(context, MaterialPageRoute(builder: (context) {
-                return const CloneGoogleMapScreen();
+                return CloneGoogleMapScreen(title: 'Google Map Virtual Display',);
               }));
               CloneGoogleMapsFlutterAndroid.useVirtualDisplay = false;
             }, child: const Text('Google Map Virtual Display'),),
@@ -66,15 +82,5 @@ class _SelectScreenState extends State<SelectScreen> {
         ),
       ),
     );
-  }
-}
-
-
-Future switchImageView() async {
-  final res = await SimplePlatformView.isUsingImageView();
-  if (res) {
-    await SimplePlatformView.revertFromImageView();
-  } else {
-    await SimplePlatformView.convertToImageView();
   }
 }
