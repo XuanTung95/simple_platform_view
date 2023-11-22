@@ -198,7 +198,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           }
 
           flutterView.convertToImageView();
-          changeSurfaceViewBackgroundMode(false);
           pendingShowViewsContainer = true;
 
           configureForOpaqueHybridComposition(platformView, request);
@@ -471,7 +470,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
         public void convertToImageView() {
           if (flutterView != null) {
             flutterView.convertToImageView();
-            changeSurfaceViewBackgroundMode(false);
             initExternalViewContainer();
           }
         }
@@ -485,7 +483,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
               }
             });
             // To allows external views visible
-            changeSurfaceViewBackgroundMode(true);
             initExternalViewContainer();
           }
         }
@@ -1178,24 +1175,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       }
     }
     return false;
-  }
-
-  private void changeSurfaceViewBackgroundMode(boolean isTransparent) {
-    if (flutterView != null) {
-      for (int i=0; i < flutterView.getChildCount(); i++) {
-        View view = flutterView.getChildAt(i);
-        if (view instanceof FlutterSurfaceView) {
-          FlutterSurfaceView surfaceView = (FlutterSurfaceView) view;
-          if (isTransparent) {
-            surfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);
-            surfaceView.setZOrderOnTop(true);
-          } else {
-            surfaceView.getHolder().setFormat(PixelFormat.OPAQUE);
-            surfaceView.setZOrderOnTop(false);
-          }
-        }
-      }
-    }
   }
 
   public void reorderViews(int[] newOrder) {
