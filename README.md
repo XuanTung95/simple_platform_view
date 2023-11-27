@@ -79,15 +79,17 @@ If you are using Hybrid composition mode and facing performance issue, you can t
 | Linux           | 	❌    |
 
 #### Download the custom engine
-Download the custom Flutter version [Here](https://github.com/XuanTung95/flutter/releases)
-Unzip downloaded `flutter.zip` file.
-Run this command to download the custom engine artifacts for the first time.
+Download the custom Flutter version [Here](https://github.com/XuanTung95/flutter/releases).
+
+Unzip the downloaded `flutter.zip` file.
+
+Run the following command to download the custom engine artifacts for the first time:
 
 ```
    $ path_to_custom_version/flutter/bin/flutter doctor
 ```
 
-Then use it as normal Flutter.
+Then use it same as a normal Flutter installation:
 
 ```
    $ path_to_custom_version/flutter/bin/flutter build apk
