@@ -4,13 +4,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:simple_platform_view/simple_platform_view.dart';
-import 'package:simple_platform_view_example/ios/clone_google_maps_flutter_ios.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:simple_platform_view_example/screen/expensive_widget.dart';
 import 'package:simple_platform_view_example/android/clone_google_maps_flutter_android.dart';
+import 'package:simple_platform_view_example/screen/select_screen.dart';
 
 class CloneGoogleMapScreen extends StatefulWidget {
-  const CloneGoogleMapScreen({Key? key}) : super(key: key);
+  const CloneGoogleMapScreen({Key? key, this.useOriginalMap = false, required this.title}) : super(key: key);
+
+  final bool useOriginalMap;
+  final String title;
 
   @override
   State<CloneGoogleMapScreen> createState() => _CloneGoogleMapScreenState();
@@ -28,20 +31,23 @@ class _CloneGoogleMapScreenState extends State<CloneGoogleMapScreen> {
     super.initState();
     /// Replace GoogleMapsFlutterPlatform.instance with the modified version
     if (Platform.isAndroid) {
-      CloneGoogleMapsFlutterAndroid.registerWith();
-    } else if (Platform.isIOS) {
-      CloneGoogleMapsFlutterIOS.registerWith();
+      if (widget.useOriginalMap) {
+        if (defaultMapInstance != null) {
+          GoogleMapsFlutterPlatform.instance = defaultMapInstance!;
+        }
+      } else {
+        CloneGoogleMapsFlutterAndroid.registerWith();
+      }
     }
   }
 
-  int count = 0;
   GoogleMapController? controller;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Clone Google Map Screen $count"),
+        title: Text(widget.title),
       ),
       body: Stack(
         children: [
@@ -57,11 +63,8 @@ class _CloneGoogleMapScreenState extends State<CloneGoogleMapScreen> {
           const ExpensiveWidget(),
           Center(
             child: FloatingActionButton(
+              heroTag: "test",
               onPressed: () {
-                SimplePlatformView.setBackgroundColor(Colors.red);
-                setState(() {
-                  count++;
-                });
                 controller?.moveCamera(CameraUpdate.newLatLng(const LatLng(12.263059, 109.187472)));
               },
               child: const Icon(Icons.abc),

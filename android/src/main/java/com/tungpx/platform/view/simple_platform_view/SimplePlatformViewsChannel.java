@@ -1,5 +1,7 @@
 package com.tungpx.platform.view.simple_platform_view;
 
+import android.view.InputDevice;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import io.flutter.Log;
@@ -20,7 +22,7 @@ import java.util.Map;
  * <p>Register a {@link SimplePlatformViewsHandler} to implement the Android side of this channel.
  */
 public class SimplePlatformViewsChannel {
-  private static final String TAG = "PlatformViewsChannel";
+  private static final String TAG = "SimplePlatformViewsChannel";
 
   private final MethodChannel channel;
   private SimplePlatformViewsHandler handler;
@@ -71,6 +73,15 @@ public class SimplePlatformViewsChannel {
               break;
             case "setBackgroundColor":
               setBackgroundColor(call, result);
+              break;
+            case "isUsingImageView":
+              isUsingImageView(call, result);
+              break;
+            case "convertToImageView":
+              convertToImageView(call, result);
+              break;
+            case "revertFromImageView":
+              revertFromImageView(call, result);
               break;
             case "hotRestart":
               // noop
@@ -169,7 +180,9 @@ public class SimplePlatformViewsChannel {
             handler.offset(
                 (int) offsetArgs.get("id"),
                 (double) offsetArgs.get("top"),
-                (double) offsetArgs.get("left"));
+                (double) offsetArgs.get("left"),
+                (long) offsetArgs.get("ts")
+            );
             result.success(null);
           } catch (IllegalStateException exception) {
             result.error("error", detailedExceptionString(exception), null);
@@ -193,7 +206,8 @@ public class SimplePlatformViewsChannel {
                   (float) (double) args.get(10),
                   (int) args.get(11),
                   (int) args.get(12),
-                  (int) args.get(13),
+                  // Fix https://github.com/flutter/flutter/issues/128925
+                  InputDevice.SOURCE_TOUCHSCREEN, // (int) args.get(13),
                   (int) args.get(14),
                   ((Number) args.get(15)).longValue());
 
@@ -237,6 +251,32 @@ public class SimplePlatformViewsChannel {
             }
             result.success(null);
           } catch (IllegalStateException exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
+
+        private void isUsingImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            result.success(handler.isUsingImageView());
+          } catch (Exception exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
+
+        private void convertToImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            handler.convertToImageView();
+            result.success(null);
+          } catch (Exception exception) {
+            result.error("error", detailedExceptionString(exception), null);
+          }
+        }
+
+        private void revertFromImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+          try {
+            handler.revertFromImageView();
+            result.success(null);
+          } catch (Exception exception) {
             result.error("error", detailedExceptionString(exception), null);
           }
         }
@@ -300,7 +340,7 @@ public class SimplePlatformViewsChannel {
     /**
      * The Flutter application would like to change the offset of an existing Android {@code View}.
      */
-    void offset(int viewId, double top, double left);
+    void offset(int viewId, double top, double left, long ts);
 
     /**
      * The user touched a platform view within Flutter.
@@ -321,6 +361,12 @@ public class SimplePlatformViewsChannel {
 
     /** Set background color for Flutter view */
     void setBackgroundColor(int color);
+
+    boolean isUsingImageView();
+
+    void convertToImageView();
+
+    void revertFromImageView();
   }
 
   /** Request sent from Flutter to create a new platform view. */

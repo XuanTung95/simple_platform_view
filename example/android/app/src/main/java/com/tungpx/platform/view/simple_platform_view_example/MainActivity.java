@@ -7,9 +7,11 @@ import io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode;
 
 public class MainActivity extends FlutterActivity {
 
+    /*
     @NonNull
     @Override
     protected BackgroundMode getBackgroundMode() {
         return BackgroundMode.transparent;
     }
+    */
 }

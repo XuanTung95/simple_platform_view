@@ -1,4 +1,3 @@
-import 'package:flutter/animation.dart';
 import 'package:flutter/services.dart';
 
 class SimpleSystemChannels {

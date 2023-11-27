@@ -3,15 +3,15 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
-import 'package:simple_platform_view/simple_platform_view_method_channel.dart';
+import 'package:flutter/widgets.dart';
+import 'package:jni/jni.dart';
 import 'package:simple_platform_view/src/android/simple_platform_view_android.dart';
 import 'package:simple_platform_view/src/common/simple_system_channels.dart';
-import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
+// import 'package:simple_platform_view/src/ios/simple_platform_view_ios.dart';
+import 'plugin_utils.dart';
 
 export 'dart:ui' show Offset, Size, TextDirection, VoidCallback;
 
@@ -28,6 +28,10 @@ class SimplePlatformViewsService {
   static final SimplePlatformViewsService instance = SimplePlatformViewsService._();
 
   int _nextPlatformViewId = 99999;
+  final Set<int> _viewsOrder = <int>{};
+  List<int> _prevViewsOrder = [];
+  bool _waitingRenderCallback = false;
+  static JClass? _pluginNativeClass;
 
   int getNextPlatformViewId() {
     return _nextPlatformViewId++;
@@ -37,12 +41,14 @@ class SimplePlatformViewsService {
     switch (call.method) {
       case 'viewFocused':
         final int id = call.arguments as int;
-        if (focusCallbacks.containsKey(id)) {
-          focusCallbacks[id]!();
+        if (_focusCallbacks.containsKey(id)) {
+          _focusCallbacks[id]!();
         }
         break;
       default:
-        throw UnimplementedError("${call.method} was invoked but isn't implemented by PlatformViewsService");
+        // throw UnimplementedError("${call.method} was invoked but isn't implemented by PlatformViewsService");
+        print("SimplePlatformView: ${call.method} was invoked but isn't implemented by SimplePlatformViewsService");
+        break;
     }
     return Future<void>.value();
   }
@@ -50,7 +56,7 @@ class SimplePlatformViewsService {
   /// Maps platform view IDs to focus callbacks.
   ///
   /// The callbacks are invoked when the platform view asks to be focused.
-  final Map<int, VoidCallback> focusCallbacks = <int, VoidCallback>{};
+  final Map<int, VoidCallback> _focusCallbacks = <int, VoidCallback>{};
 
   /// {@template flutter.services.PlatformViewsService.initAndroidView}
   /// Creates a controller for a new Android view.
@@ -102,7 +108,9 @@ class SimplePlatformViewsService {
       useVirtualDisplay: useVirtualDisplay,
     );
 
-    instance.focusCallbacks[id] = onFocus ?? () {};
+    if (onFocus != null) {
+      instance._focusCallbacks[id] = onFocus;
+    }
     return controller;
   }
 
@@ -119,24 +127,93 @@ class SimplePlatformViewsService {
   /// get the input focus.
   /// The `id, `viewType, and `layoutDirection` parameters must not be null.
   /// If `creationParams` is non null then `creationParamsCodec` must not be null.
-  static SimpleUiKitViewController initUiKitView({
-    required int id,
-    required String viewType,
-    required TextDirection layoutDirection,
-    dynamic creationParams,
-    MessageCodec<dynamic>? creationParamsCodec,
-    VoidCallback? onFocus,
-  }) {
-    assert(creationParams == null || creationParamsCodec != null);
-    // TODO(amirh): pass layoutDirection once the system channel supports it.
-    if (onFocus != null) {
-      instance.focusCallbacks[id] = onFocus;
+  // static SimpleUiKitViewController initUiKitView({
+  //   required int id,
+  //   required String viewType,
+  //   required TextDirection layoutDirection,
+  //   dynamic creationParams,
+  //   MessageCodec<dynamic>? creationParamsCodec,
+  //   VoidCallback? onFocus,
+  // }) {
+  //   assert(creationParams == null || creationParamsCodec != null);
+  //   // TODO(amirh): pass layoutDirection once the system channel supports it.
+  //   if (onFocus != null) {
+  //     instance._focusCallbacks[id] = onFocus;
+  //   }
+  //   return SimpleUiKitViewController(id: id,
+  //       viewType: viewType,
+  //       layoutDirection: layoutDirection,
+  //       creationParams: creationParams,
+  //       creationParamsCodec: creationParamsCodec,
+  //   );
+  // }
+
+  void removeFocusCallbacks(int viewId) {
+    instance._focusCallbacks.remove(viewId);
+  }
+
+  void reportOnPaint(int viewId) {
+    _viewsOrder.add(viewId);
+    if (!_waitingRenderCallback) {
+      _waitingRenderCallback = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _waitingRenderCallback = false;
+
+        final orders = _viewsOrder.toList();
+        _viewsOrder.clear();
+
+        if (!listEquals(_prevViewsOrder, orders)) {
+          _prevViewsOrder = orders;
+          if (orders.length < 2) {
+            return;
+          }
+          final array = JArray(jint.type, orders.length);
+          for (int i=0; i < orders.length; i++) {
+            array[i] = orders[i];
+          }
+          final cls = _getPluginClass();
+          cls.callStaticMethodByName<void>("setViewOrderGlobal",
+              "([I)V",
+              [
+                array
+              ]);
+          array.release();
+        }
+      });
     }
-    return SimpleUiKitViewController(id: id,
-        viewType: viewType,
-        layoutDirection: layoutDirection,
-        creationParams: creationParams,
-        creationParamsCodec: creationParamsCodec,
-    );
+  }
+
+  JClass _getPluginClass() {
+    _pluginNativeClass ??= Jni.findJClass("com/tungpx/platform/view/simple_platform_view/SimplePlatformViewPlugin");
+    return _pluginNativeClass!;
+  }
+
+  void sendTransformJni(int id, Matrix4? matrix) {
+    final cls = _getPluginClass();
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    if (matrix != null) {
+      scaleX = matrix.getScaleX();
+      scaleY = matrix.getScaleY();
+    }
+    cls.callStaticMethodByName<void>("setTransformGlobal",
+        "(IDD)V",
+        [
+          id,
+          scaleX,
+          scaleY,
+        ]);
+  }
+
+  void sendOffsetJni(int id, double top, double left, int ts) {
+    final cls = _getPluginClass();
+    cls.callStaticMethodByName<void>("setOffsetGlobal",
+      "(IDDJ)V",
+      [
+        id,
+        top,
+        left,
+        ts
+      ]);
   }
 }

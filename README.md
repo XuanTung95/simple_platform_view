@@ -19,16 +19,27 @@ Basically, this plugin continues to render the Flutter UI as if there was no pla
 Platform view will be rendered in the same way as a native app does.
 
 After creating the platform view, it is positioned behind the FlutterView.
-Because the platform view is obscured by the Flutter view, there needs to be a mechanism for it to be visible.
 
 Enabling the visibility of the platform view involves the following steps:
-- Making the Flutter view transparent
+- Convert from FlutterSurfaceView to FlutterImageView to support position synchronization
 - Clearing the content below the platform view
 
 There is also need for a mechanism to forward touch events from Flutter view to platform views
 
 ## Consequences
 Here are some considerations and consequences of using this plugin:
+
+**Custom engine is required**:
+
+This plugin requires modifications to the engine itself. Therefore, to run it on Android, you need to use a modified version of Flutter (see [Getting Started]).
+
+It would be preferable to use this with the official Flutter version, but unfortunately, that is not possible at the moment.
+
+Custom [framework repo](https://github.com/XuanTung95/flutter/tree/develop)
+
+Custom [engine repo](https://github.com/XuanTung95/engine/tree/develop)
+
+[Build script](https://github.com/XuanTung95/recipes/tree/develop)
 
 **Content Limitations**: Only content drawn on top of the platform view will be visible, the content below it will be cleared.
 
@@ -38,13 +49,12 @@ However, if the platform view is opaque, there is no need to render the backgrou
 
 As a result, **this mode exclusively supports opaque platform views**
 
-**Position Synchronization**: Moving the platform view can lead to synchronization issues.
+**FlutterImageView Limitations**:
 
-The position of the platform view is updated through method channels, but there is no guarantee
-that its position will align perfectly with the updates of the Flutter UI.
-
-Therefore, it is recommended to use this mode with fixed-position platform views, such as
-a map in a mapping app or a webview screen. **Do not use it inside a scroll view**.
+This plugin use FlutterImageView to render the Flutter UI. Prior to Android 10, FlutterImageView copies 
+each Flutter frame out of the graphic memory into main memory and then copied back to a GPU texture.
+As this copy happens per frame, the performance of the entire Flutter UI may be impacted.
+From Android 10, FlutterImageView use HardwareBuffer which have better performance.
 
 **Hybrid Composition Combination**: Combining this mode with Hybrid Composition modes may result in unexpected behavior,
 so use caution when integrating multiple composition modes simultaneously.
@@ -57,10 +67,35 @@ If you are using Hybrid composition mode and facing performance issue, you can t
 
 ## Getting Started
 
-| Platform | Status     |
-|----------|------------|
-| Android  | 	✅     |
-| iOS      | 	✅     |
+| Platform | Status   |
+|----------|----------|
+| Android  | 	✅    |
+| iOS      | 	❌    |
+
+| Host OS support | Status |
+|-----------------|-------|
+| MacOS           | 	✅    |
+| Windows         | 	✅    |
+| Linux           | 	❌    |
+
+#### Download the custom engine
+Download the custom Flutter version [Here](https://github.com/XuanTung95/flutter/releases).
+
+Unzip the downloaded `flutter.zip` file.
+
+Run the following command to download the custom engine artifacts for the first time:
+
+```
+   $ path_to_custom_version/flutter/bin/flutter doctor
+```
+
+Then use it same as a normal Flutter installation:
+
+```
+   $ path_to_custom_version/flutter/bin/flutter build apk
+```
+
+For building app on platform other than Android, you should use the [Official Flutter version](https://docs.flutter.dev/release/archive?tab=macos).
 
 #### Installation
 Add the following dependency to your pubspec.yaml file:
@@ -72,23 +107,6 @@ dependencies:
 
 ### Usage
 #### Android:
-**Make FlutterView transparent (required)**
-
-Add following code to MainActivity.java:
-  ```java
-    import androidx.annotation.NonNull;
-    import io.flutter.embedding.android.FlutterActivity;
-    import io.flutter.embedding.android.FlutterActivityLaunchConfigs.BackgroundMode;
-
-    public class MainActivity extends FlutterActivity {
-
-        @NonNull
-        @Override
-        protected BackgroundMode getBackgroundMode() {
-            return BackgroundMode.transparent;
-        }
-    }
-  ```
 
 To use this plugin, just replace `AndroidView` widget with `SimpleAndroidView`:
 
@@ -108,6 +126,20 @@ To use this plugin, just replace `AndroidView` widget with `SimpleAndroidView`:
     }
   ```
 
+If you are using `SimpleAndroidView` inside a scroll view, add this to your `MaterialApp` to prevent issues with `StretchingOverscrollIndicator`:
+
+  ```dart
+    import 'package:simple_platform_view/simple_platform_view.dart';
+
+    @override
+    Widget build(BuildContext context) {
+      return MaterialApp(
+        // Fix StretchingOverscrollIndicator issues
+        scrollBehavior: SimplePlatformViewScrollBehavior(),
+      );
+    }
+  ```
+
 If you are trying to use this with other plugin, clone their plugin and replace the implementation with `SimpleAndroidView`. See Example for more detail.
 
 | Demo                       |
@@ -120,63 +152,7 @@ If you are trying to use this with other plugin, clone their plugin and replace 
 
 #### iOS:
 
-**Register PlatformViewFactory**
-
-If you are developing your own plugin, use `SimplePlatformViewPlugin.registerViewFactory` to register your platform view into SimplePlatformViewPlugin
-  ```swift
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        SimplePlatformViewPlugin.registerViewFactory(
-            MyPlatformViewFactory(messenger: registrar.messenger()),
-            withId: "my_view_type",
-            gestureRecognizersBlockingPolicy: FlutterPlatformViewGestureRecognizersBlockingPolicyEager
-        )
-    }
-  ```
-
-If you want to register automatically or use platform view from other plugins:
-  ```swift
-import simple_platform_view;
-
-@objc class AppDelegate: FlutterAppDelegate {
-    override func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-    ) -> Bool {
-        let fakeRegistry = SimplePlatformViewPlugin.createFakeFlutterPluginRegistry(realPluginRegistry: self);
-        GeneratedPluginRegistrant.register(with: fakeRegistry);
-        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    }
-}
-  ```
-
-Replace `UiKitView` widget with `SimpleUiKitView`:
-
-  ```dart
-  Widget build(BuildContext context) {
-    return SimpleUiKitView(
-      viewType: 'my_view_type',
-      onPlatformViewCreated: onPlatformViewCreated,
-      gestureRecognizers: gestureRecognizers,
-      creationParams: creationParams,
-      creationParamsCodec: const StandardMessageCodec(),
-    );
-  }
-  ```
-
-**Note**: there is a weird bug when using this plugin on certain iPhone devices like iPhone XS or iPhone XR. 
-While the cellular signal bar (the icon on the status bar) is animating, the frame rate is drop to 20fps. 
-It returns to 60fps once the animation is complete or when the icon is not displayed ([#115036](https://github.com/flutter/flutter/issues/115036)).
-
-**Change the background color**
-
-If you want to change the background color of FlutterView:
-
-  ```dart
-  import 'package:simple_platform_view/simple_platform_view.dart';
-  void changeBackgroundColor() {
-    SimplePlatformView.setBackgroundColor(Colors.red);
-  }
-  ```
+**iOS is not supported**
 
 **Used by other plugins**:
 

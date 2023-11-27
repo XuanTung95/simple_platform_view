@@ -6,7 +6,13 @@ import static android.view.MotionEvent.PointerProperties;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.MutableContextWrapper;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.PixelFormat;
+import android.media.Image;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,8 +24,12 @@ import androidx.annotation.UiThread;
 import androidx.annotation.VisibleForTesting;
 import io.flutter.Log;
 import io.flutter.embedding.android.AndroidTouchProcessor;
+import io.flutter.embedding.android.FlutterImageView;
+import io.flutter.embedding.android.FlutterSurfaceView;
 import io.flutter.embedding.android.FlutterView;
 import io.flutter.embedding.android.MotionEventTracker;
+import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.embedding.engine.FlutterJNI;
 import io.flutter.embedding.engine.mutatorsstack.*;
 import io.flutter.embedding.engine.renderer.FlutterRenderer;
 import io.flutter.plugin.common.BinaryMessenger;
@@ -30,12 +40,13 @@ import io.flutter.plugin.platform.PlatformViewRegistry;
 import io.flutter.plugin.platform.PlatformViewsAccessibilityDelegate;
 import io.flutter.view.AccessibilityBridge;
 import io.flutter.view.TextureRegistry;
-import com.tungpx.platform.view.simple_platform_view.SimplePlatformViewsChannel.PlatformViewCreationRequest.RequestedDisplayMode;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manages platform views.
@@ -44,16 +55,21 @@ import java.util.List;
  * io.flutter.app.FlutterPluginRegistry} has a single platform views controller. A platform views
  * controller can be attached to at most one Flutter view.
  */
-public class SimplePlatformViewsController implements PlatformViewsAccessibilityDelegate {
+public class SimplePlatformViewsController implements PlatformViewsAccessibilityDelegate, FlutterJNI.OnFrameTimeListener {
   private static final String TAG = "SimplePlatformViewsController";
 
   private AndroidTouchProcessor androidTouchProcessor;
+
+  private int viewBackgroundColor = Color.WHITE;
 
   // The context of the Activity or Fragment hosting the render target for the Flutter engine.
   private Context context;
 
   // The View currently rendering the Flutter UI associated with these platform views.
   private FlutterView flutterView;
+
+  // Contains all external views
+  private SimplePlatformViewContainer externalViewsContainer;
 
   private PlatformViewRegistry registry;
 
@@ -109,6 +125,39 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
   // Used to acquire the original motion events using the motionEventIds.
   private final MotionEventTracker motionEventTracker;
 
+  private FlutterEngine flutterEngine;
+
+  final LayoutDelayController frameDelayController = new LayoutDelayController();
+
+  private FlutterImageView flutterImageView;
+
+  // Show externalViewsContainer at the next frame
+  private boolean pendingShowViewsContainer = false;
+
+  final Runnable onImageAvailableCallback = new Runnable() {
+    @Override
+    public void run() {
+      if (flutterImageView != null
+              && flutterImageView.getIsAttachedToRenderer()
+              && viewWrappers.size() > 0
+      ) {
+        flutterImageView.acquireLatestImage();
+        Image image = flutterImageView.getPendingImage();
+        if (image != null) {
+          onImageAvailable(image);
+          if (pendingShowViewsContainer) {
+            pendingShowViewsContainer = false;
+            if (externalViewsContainer != null) {
+              if (externalViewsContainer.getVisibility() != View.VISIBLE) {
+                externalViewsContainer.setVisibility(View.VISIBLE);
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
   private final SimplePlatformViewsChannel.SimplePlatformViewsHandler channelHandler =
       new SimplePlatformViewsChannel.SimplePlatformViewsHandler() {
 
@@ -133,7 +182,6 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
                 "Flutter view is null. This means the platform views controller doesn't have an attached view, view id: "
                     + viewId);
           }
-
           final PlatformView platformView = createPlatformView(request, true);
 
           final View embeddedView = platformView.getView();
@@ -142,11 +190,15 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
                 "The Android view returned from PlatformView#getView() was already added to a parent view.");
           }
 
-          boolean useVirtualDisplay = request.displayMode == RequestedDisplayMode.VIRTUAL_ONLY && textureRegistry != null;
+          boolean useVirtualDisplay = request.displayMode == SimplePlatformViewsChannel.PlatformViewCreationRequest.RequestedDisplayMode.VIRTUAL_ONLY
+                  && textureRegistry != null;
 
           if (useVirtualDisplay) {
             return configureForVirtualDisplay(platformView, request);
           }
+
+          flutterView.convertToImageView();
+          pendingShowViewsContainer = true;
 
           configureForOpaqueHybridComposition(platformView, request);
           return -1;
@@ -199,24 +251,37 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
               wrapperParent.removeView(viewWrapper);
             }
             viewWrappers.remove(viewId);
-            return;
-          }
-          // The platform view is displayed using a PlatformViewLayer.
-          final FlutterMutatorView parentView = platformViewParent.get(viewId);
-          if (parentView != null) {
-            parentView.removeAllViews();
-            parentView.unsetOnDescendantFocusChangeListener();
+          } else {
+            // The platform view is displayed using a PlatformViewLayer.
+            final FlutterMutatorView parentView = platformViewParent.get(viewId);
+            if (parentView != null) {
+              parentView.removeAllViews();
+              parentView.unsetOnDescendantFocusChangeListener();
 
-            final ViewGroup mutatorViewParent = (ViewGroup) parentView.getParent();
-            if (mutatorViewParent != null) {
-              mutatorViewParent.removeView(parentView);
+              final ViewGroup mutatorViewParent = (ViewGroup) parentView.getParent();
+              if (mutatorViewParent != null) {
+                mutatorViewParent.removeView(parentView);
+              }
+              platformViewParent.remove(viewId);
             }
-            platformViewParent.remove(viewId);
+          }
+
+          frameDelayController.removeView(viewId);
+          if (viewWrappers.size() == 0 && viewWrapper != null) {
+            // no external view present, should revert image view
+            externalViewsContainer.setVisibility(View.GONE);
+            if (isViewSynchronizationAvailable()) {
+              flutterView.revertImageView(new Runnable() {
+                @Override
+                public void run() {
+                }
+              });
+            }
           }
         }
 
         @Override
-        public void offset(int viewId, double top, double left) {
+        public void offset(int viewId, double top, double left, long ts) {
           if (usesVirtualDisplay(viewId)) {
             // Virtual displays don't need an accessibility offset.
             return;
@@ -233,13 +298,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             Log.e(TAG, "Setting offset for unknown platform view with id: " + viewId);
             return;
           }
-          final int physicalTop = toPhysicalPixels(top);
-          final int physicalLeft = toPhysicalPixels(left);
-          final FrameLayout.LayoutParams layoutParams =
-              (FrameLayout.LayoutParams) viewWrapper.getLayoutParams();
-          layoutParams.topMargin = physicalTop;
-          layoutParams.leftMargin = physicalLeft;
-          viewWrapper.setLayoutParams(layoutParams);
+          frameDelayController.setViewSyncAvailable(isViewSynchronizationAvailable());
+          frameDelayController.onViewOffset(viewId, ts, top, left);
         }
 
         @Override
@@ -278,10 +338,12 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
           final PlatformView platformView = platformViews.get(viewId);
           final SimplePlatformViewWrapper viewWrapper = viewWrappers.get(viewId);
-          if (platformView == null || viewWrapper == null) {
+          LayoutParamHolder paramHolder = frameDelayController.getParamHolder(viewId);
+          if (platformView == null || viewWrapper == null || paramHolder == null) {
             Log.e(TAG, "Resizing unknown platform view with id: " + viewId);
             return;
           }
+          paramHolder.setSize(request.newLogicalWidth, request.newLogicalHeight);
           // Resize the buffer only when the current buffer size is smaller than the new size.
           // This is required to prevent a situation when smooth keyboard animation
           // resizes the texture too often, such that the GPU and the platform thread don't agree on
@@ -290,23 +352,24 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           // Resizing the texture causes pixel stretching since the size of the GL texture used in
           // the engine
           // is set by the framework, but the texture buffer size is set by the platform down below.
-          if (physicalWidth > viewWrapper.getBufferWidth()
-                  || physicalHeight > viewWrapper.getBufferHeight()) {
-            viewWrapper.setBufferSize(physicalWidth, physicalHeight);
+          if (paramHolder.width() > viewWrapper.getBufferWidth()
+                  || paramHolder.height() > viewWrapper.getBufferHeight()) {
+            viewWrapper.setBufferSize(paramHolder.width(), paramHolder.height());
           }
 
           final ViewGroup.LayoutParams viewWrapperLayoutParams = viewWrapper.getLayoutParams();
-          viewWrapperLayoutParams.width = physicalWidth;
-          viewWrapperLayoutParams.height = physicalHeight;
+          viewWrapperLayoutParams.width = paramHolder.width();
+          viewWrapperLayoutParams.height = paramHolder.height();
           viewWrapper.setLayoutParams(viewWrapperLayoutParams);
 
           final View embeddedView = platformView.getView();
           if (embeddedView != null) {
             final ViewGroup.LayoutParams embeddedViewLayoutParams = embeddedView.getLayoutParams();
-            embeddedViewLayoutParams.width = physicalWidth;
-            embeddedViewLayoutParams.height = physicalHeight;
+            embeddedViewLayoutParams.width = paramHolder.width();
+            embeddedViewLayoutParams.height = paramHolder.height();
             embeddedView.setLayoutParams(embeddedViewLayoutParams);
           }
+          viewWrapper.shouldUpdateSize();
           onComplete.run(
               new SimplePlatformViewsChannel.PlatformViewBufferSize(
                   toLogicalPixels(viewWrapper.getWidth()),
@@ -395,11 +458,42 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
         @Override
         public void setBackgroundColor(int color) {
+          changeBackgroundColor(color);
+        }
+
+        @Override
+        public boolean isUsingImageView() {
+          return isUsingImageViewRenderMode();
+        }
+
+        @Override
+        public void convertToImageView() {
           if (flutterView != null) {
-            flutterView.setBackgroundColor(color);
+            flutterView.convertToImageView();
+            initExternalViewContainer();
+          }
+        }
+
+        @Override
+        public void revertFromImageView() {
+          if (flutterView != null) {
+            flutterView.revertImageView(new Runnable() {
+              @Override
+              public void run() {
+              }
+            });
+            // To allows external views visible
+            initExternalViewContainer();
           }
         }
       };
+
+  private void changeBackgroundColor(int color) {
+    if (flutterView != null) {
+      flutterView.setBackgroundColor(color);
+    }
+    viewBackgroundColor = color;
+  }
 
   /// Throws an exception if the SDK version is below minSdkVersion.
   private void enforceMinimumAndroidApiVersion(int minSdkVersion) {
@@ -514,26 +608,27 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           @NonNull SimplePlatformViewsChannel.PlatformViewCreationRequest request) {
     Log.i(TAG, "Hosting opaque view in view hierarchy for platform view: " + request.viewId);
 
-    final int physicalWidth = toPhysicalPixels(request.logicalWidth);
-    final int physicalHeight = toPhysicalPixels(request.logicalHeight);
     SimplePlatformViewWrapper viewWrapper;
     viewWrapper = new SimplePlatformViewWrapper(context);
+
+    LayoutParamHolder paramHolder = new LayoutParamHolder(getDisplayDensity());
+    paramHolder.setSize(request.logicalWidth, request.logicalHeight);
+    paramHolder.setPosition(request.logicalLeft, request.logicalTop);
+
     // viewWrapper.setTouchProcessor(androidTouchProcessor);
-    viewWrapper.setBufferSize(physicalWidth, physicalHeight);
+    viewWrapper.setBufferSize(paramHolder.width(), paramHolder.height());
 
     final FrameLayout.LayoutParams viewWrapperLayoutParams =
-            new FrameLayout.LayoutParams(physicalWidth, physicalHeight);
+            new FrameLayout.LayoutParams(paramHolder.width(), paramHolder.height());
 
     // Size and position the view wrapper.
-    final int physicalTop = toPhysicalPixels(request.logicalTop);
-    final int physicalLeft = toPhysicalPixels(request.logicalLeft);
-    viewWrapperLayoutParams.topMargin = physicalTop;
-    viewWrapperLayoutParams.leftMargin = physicalLeft;
+    viewWrapperLayoutParams.topMargin = paramHolder.top();
+    viewWrapperLayoutParams.leftMargin = paramHolder.left();
     viewWrapper.setLayoutParams(viewWrapperLayoutParams);
 
     // Size the embedded view.
     final View embeddedView = platformView.getView();
-    embeddedView.setLayoutParams(new FrameLayout.LayoutParams(physicalWidth, physicalHeight));
+    embeddedView.setLayoutParams(new FrameLayout.LayoutParams(paramHolder.width(), paramHolder.height()));
 
     // Accessibility in the embedded view is initially disabled because if a Flutter app
     // disabled accessibility in the first frame, the embedding won't receive an update to
@@ -554,24 +649,35 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
             (v, hasFocus) -> {
               if (hasFocus) {
                 platformViewsChannel.invokeViewFocused(request.viewId);
+              } else {
+                if (textInputPlugin != null) {
+                  textInputPlugin.clearPlatformViewClient(request.viewId);
+                }
               }
             });
+    // Set default background color
+    viewWrapper.setBackgroundColor(Color.WHITE);
     insertNewOpaqueHCView(flutterView, viewWrapper);
     viewWrappers.append(request.viewId, viewWrapper);
 
     maybeInvokeOnFlutterViewAttached(platformView);
+    frameDelayController.registerView(request.viewId, viewWrapper, paramHolder);
   }
 
   private void insertNewOpaqueHCView(
           FlutterView flutterView, SimplePlatformViewWrapper viewWrapper) {
+    initExternalViewContainer();
     int index = 0;
-    for (int i = 0; i < flutterView.getChildCount(); i++) {
-      View child = flutterView.getChildAt(i);
+    for (int i = 0; i < externalViewsContainer.getChildCount(); i++) {
+      View child = externalViewsContainer.getChildAt(i);
       if (child instanceof SimplePlatformViewWrapper) {
         index = i + 1;
       }
     }
-    flutterView.addView(viewWrapper, index);
+    externalViewsContainer.addView(viewWrapper, index);
+    if (externalViewsContainer.getVisibility() != View.VISIBLE && !isViewSynchronizationAvailable()) {
+      externalViewsContainer.setVisibility(View.VISIBLE);
+    }
   }
 
   // Retrieve PlatformViewFactory from PlatformViewRegistry using reflection
@@ -593,7 +699,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           return (PlatformViewFactory) getFactoryMethod.invoke(registry, viewType);
         }
       } catch (Exception e) {
-        Log.e(TAG, "Cannot get PlatformViewFactory for type " + viewType + " : " + e.toString());
+        Log.e(TAG, "Cannot get PlatformViewFactory for type " + viewType + " : " + e);
         e.printStackTrace();
       }
     }
@@ -665,6 +771,13 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     motionEventTracker = MotionEventTracker.getInstance();
   }
 
+  /** FlutterJNI.OnFrameTimeListener */
+  @Override
+  public void onRasterStart(long buildStartTime, long buildEndTime, long rasterStartTime) {
+    long currentNanoTime = System.nanoTime();
+    frameDelayController.onRasterStart(buildStartTime, buildEndTime, rasterStartTime, currentNanoTime);
+  }
+
   /**
    * Attaches this platform views controller to its input and output channels.
    *
@@ -674,6 +787,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
    */
   public void attach(
       @Nullable Context context,
+      @NonNull FlutterEngine flutterEngine,
       @NonNull TextureRegistry textureRegistry,
       PlatformViewRegistry platformViewRegistry,
       @NonNull BinaryMessenger dartExecutor) {
@@ -687,6 +801,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     registry = platformViewRegistry;
     platformViewsChannel = new SimplePlatformViewsChannel(dartExecutor);
     platformViewsChannel.setPlatformViewsHandler(channelHandler);
+    this.flutterEngine = flutterEngine;
+    this.flutterEngine.addOnFrameTimeListener(this);
   }
 
   /**
@@ -705,6 +821,8 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     platformViewsChannel = null;
     context = null;
     textureRegistry = null;
+    flutterEngine.removeOnFrameTimeListener(this);
+    flutterEngine = null;
   }
 
   /**
@@ -718,20 +836,84 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
       return;
     }
     flutterView = newFlutterView;
+    // changeBackgroundColor(viewBackgroundColor);
     // Add wrapper for platform views that use GL texture.
+    /*
     for (int index = 0; index < viewWrappers.size(); index++) {
       final SimplePlatformViewWrapper view = viewWrappers.valueAt(index);
       flutterView.addView(view);
     }
+    /*
+
     // Add wrapper for platform views that are composed at the view hierarchy level.
+    /*
     for (int index = 0; index < platformViewParent.size(); index++) {
       final FlutterMutatorView view = platformViewParent.valueAt(index);
       flutterView.addView(view);
     }
+    */
     // Notify platform views that they are now attached to a FlutterView.
     for (int index = 0; index < platformViews.size(); index++) {
       final PlatformView view = platformViews.valueAt(index);
       view.onFlutterViewAttached(flutterView);
+    }
+  }
+
+  void initExternalViewContainer() {
+    if (flutterView != null) {
+      int count = flutterView.getChildCount();
+      FlutterImageView flutterImageView = null;
+      int imageViewIndex = -1;
+      SimplePlatformViewContainer currentContainer = null;
+      int oldContainerIndex = -1;
+      for (int i=0; i<count ; i++) {
+        View child = flutterView.getChildAt(i);
+        if (child instanceof FlutterImageView) {
+          imageViewIndex = i;
+          flutterImageView = (FlutterImageView) child;
+        }
+        if (child instanceof SimplePlatformViewContainer) {
+          currentContainer = (SimplePlatformViewContainer) child;
+          oldContainerIndex = i;
+        }
+      }
+      if (currentContainer == null) {
+        currentContainer = new SimplePlatformViewContainer(flutterView.getContext());
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        );
+        currentContainer.setLayoutParams(layoutParams);
+      }
+      this.externalViewsContainer = currentContainer;
+      boolean isNewImageView = this.flutterImageView != flutterImageView;
+      this.flutterImageView = flutterImageView;
+      if (flutterImageView == null || !flutterImageView.getIsAttachedToRenderer()) {
+        // place container at the bottom
+        if (oldContainerIndex < 0) {
+          flutterView.addView(currentContainer, 0);
+        } else if (oldContainerIndex != 0) {
+          flutterView.removeView(currentContainer);
+          flutterView.addView(currentContainer, 0);
+        }
+      } else {
+        if (isNewImageView) {
+          flutterImageView.addOnImageAvailableListener(this.onImageAvailableCallback);
+        }
+        // place container below imageview
+        if (oldContainerIndex < 0) {
+          flutterView.addView(currentContainer, imageViewIndex);
+        } else {
+          if (oldContainerIndex != imageViewIndex - 1) {
+            flutterView.removeView(currentContainer);
+            if (oldContainerIndex < imageViewIndex) {
+              flutterView.addView(currentContainer, imageViewIndex -1);
+            } else {
+              flutterView.addView(currentContainer, imageViewIndex);
+            }
+          }
+        }
+      }
     }
   }
 
@@ -954,4 +1136,115 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
     androidTouchProcessor = new AndroidTouchProcessor(flutterRenderer, /*trackMotionEvents=*/ true);
   }
 
+  public void onImageAvailable(Image image) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+      frameDelayController.onImageAvailable(image.getTimestamp());
+    } else {
+      frameDelayController.onImageAvailable(System.nanoTime());
+    }
+  }
+
+  public void offset(int viewId, double top, double left, long ts) {
+    channelHandler.offset(viewId, top, left, ts);
+  }
+
+  public void setTransform(int viewId, Matrix matrix) {
+    final SimplePlatformViewWrapper viewWrapper = viewWrappers.get(viewId);
+    if (viewWrapper != null) {
+      viewWrapper.setMatrix(matrix);
+    }
+  }
+
+  public boolean isViewSynchronizationAvailable() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT
+            && flutterView != null && flutterImageView != null
+    ) {
+      return flutterImageView.getIsAttachedToRenderer();
+    }
+    return false;
+  }
+
+  private boolean isUsingImageViewRenderMode() {
+    if (flutterView != null) {
+      for (int i=0; i < flutterView.getChildCount(); i++) {
+        View view = flutterView.getChildAt(i);
+        if (view instanceof FlutterImageView) {
+          FlutterImageView imageView = (FlutterImageView) view;
+          return imageView.getIsAttachedToRenderer();
+        }
+      }
+    }
+    return false;
+  }
+
+  public void reorderViews(int[] newOrder) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      reorderViewsInternal(newOrder);
+    } else {
+      final Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+          reorderViewsInternal(newOrder);
+        }
+      };
+      Handler mainHandler = new Handler(Looper.getMainLooper());
+      mainHandler.post(runnable);
+    }
+  }
+
+  private void reorderViewsInternal(int[] newOrder) {
+    if (externalViewsContainer == null) {
+      Log.w(TAG, "Cannot reorder when externalViewsContainer = null");
+      return;
+    }
+    if (externalViewsContainer.getChildCount() < 2) {
+      return;
+    }
+    if (newOrder.length != externalViewsContainer.getChildCount()) {
+      Log.w(TAG, "Cannot reorder, child count not match " + Arrays.toString(newOrder) + " " + externalViewsContainer.getChildCount());
+      return;
+    }
+
+    List<Integer> currentViewIds = new ArrayList<>();
+    for (int i = 0; i < externalViewsContainer.getChildCount(); i++) {
+      View child = externalViewsContainer.getChildAt(i);
+      if (child instanceof SimplePlatformViewWrapper) {
+        SimplePlatformViewWrapper wrapper = (SimplePlatformViewWrapper) child;
+        int index = viewWrappers.indexOfValue(wrapper);
+        if (index < 0) {
+          Log.e(TAG, "Cannot find view in SimplePlatformViewContainer");
+          return;
+        }
+        int viewId = viewWrappers.keyAt(index);
+        boolean found = false;
+        for (int k : newOrder) {
+          if (k == viewId) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          Log.e(TAG, "Not found view id " + viewId);
+          return;
+        }
+        currentViewIds.add(viewId);
+      } else {
+        Log.e(TAG, "Child instanceof SimplePlatformViewWrapper is not true");
+        return;
+      }
+    }
+
+    for (int i = 0; i < newOrder.length; i++) {
+      int newId = newOrder[i];
+      int currentId = currentViewIds.get(i);
+
+      if (newId != currentId) {
+        View viewToMove = viewWrappers.get(newId);
+        externalViewsContainer.removeView(viewToMove);
+        externalViewsContainer.addView(viewToMove, i);
+        currentViewIds.remove(Integer.valueOf(newId));
+        currentViewIds.add(i, newId);
+      }
+    }
+  }
 }

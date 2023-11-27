@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/widgets.dart';
 
 /// This CustomPainter is utilized to clear the content below the platform view

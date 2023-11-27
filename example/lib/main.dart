@@ -1,14 +1,14 @@
 
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:simple_platform_view/simple_platform_view.dart';
-
 import 'package:simple_platform_view_example/screen/select_screen.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // clean plugin after hot restart
-  await SimplePlatformView.restart();
+  // await Firebase.initializeApp();
+  // FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   runApp(const MyApp());
 }
 
@@ -26,8 +26,10 @@ class _MyAppState extends State<MyApp> {
   }
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: SelectScreen(),
+    return MaterialApp(
+      // theme: ThemeData(platform: TargetPlatform.iOS),
+      home: const SelectScreen(),
+      scrollBehavior: SimplePlatformViewScrollBehavior(),
     );
   }
 }
