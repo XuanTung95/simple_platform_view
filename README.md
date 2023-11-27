@@ -21,13 +21,25 @@ Platform view will be rendered in the same way as a native app does.
 After creating the platform view, it is positioned behind the FlutterView.
 
 Enabling the visibility of the platform view involves the following steps:
-- Convert from FlutterSurfaceView to FlutterImageView
+- Convert from FlutterSurfaceView to FlutterImageView to support position synchronization
 - Clearing the content below the platform view
 
 There is also need for a mechanism to forward touch events from Flutter view to platform views
 
 ## Consequences
 Here are some considerations and consequences of using this plugin:
+
+**Custom engine is required**:
+
+This plugin requires modifications to the engine itself. Therefore, to run it on Android, you need to use a modified version of Flutter (see [Getting Started]).
+
+It would be preferable to use this with the official Flutter version, but unfortunately, that is not possible at the moment.
+
+Custom [framework repo](https://github.com/XuanTung95/flutter/tree/develop)
+
+Custom [engine repo](https://github.com/XuanTung95/engine/tree/develop)
+
+[Build script](https://github.com/XuanTung95/recipes/tree/develop)
 
 **Content Limitations**: Only content drawn on top of the platform view will be visible, the content below it will be cleared.
 
@@ -59,6 +71,29 @@ If you are using Hybrid composition mode and facing performance issue, you can t
 |----------|----------|
 | Android  | 	✅    |
 | iOS      | 	❌    |
+
+| Host OS support | Status |
+|-----------------|-------|
+| MacOS           | 	✅    |
+| Windows         | 	✅    |
+| Linux           | 	❌    |
+
+#### Download the custom engine
+Download the custom Flutter version [Here](https://github.com/XuanTung95/flutter/releases)
+Unzip downloaded `flutter.zip` file.
+Run this command to download the custom engine artifacts for the first time.
+
+```
+   $ path_to_custom_version/flutter/bin/flutter doctor
+```
+
+Then use it as normal Flutter.
+
+```
+   $ path_to_custom_version/flutter/bin/flutter build apk
+```
+
+For building app on platform other than Android, you should use the [Official Flutter version](https://docs.flutter.dev/release/archive?tab=macos).
 
 #### Installation
 Add the following dependency to your pubspec.yaml file:
