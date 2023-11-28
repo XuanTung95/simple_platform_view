@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:simple_platform_view/simple_platform_view_platform_interface.dart';
+import 'package:simple_platform_view/src/common/surface_mode.dart';
+export 'package:simple_platform_view/src/common/surface_mode.dart';
 export 'src/android/simple_platform_view_android.dart';
 export 'src/android/simple_platform_view_scroll_behavior.dart';
 
@@ -19,16 +21,16 @@ class SimplePlatformView {
   //   return SimplePlatformViewPlatform.instance.restart();
   // }
 
-  static Future<bool> isUsingImageView() {
-    return SimplePlatformViewPlatform.instance.isUsingImageView();
+  /// Get SurfaceMode
+  static SurfaceMode getSurfaceMode() {
+    return SimplePlatformViewPlatform.instance.getSurfaceMode();
   }
 
-  static Future<void> convertToImageView() {
-    return SimplePlatformViewPlatform.instance.convertToImageView();
-  }
-
-  static Future<void> revertFromImageView() {
-    return SimplePlatformViewPlatform.instance.revertFromImageView();
+  /// Get SurfaceMode
+  /// - multipleSurface: switch between FlutterSurfaceView/FlutterImageView if possible
+  /// - singleSurface: only uses FlutterImageView
+  static Future<void> setSurfaceMode(SurfaceMode mode) {
+    return SimplePlatformViewPlatform.instance.setSurfaceMode(mode);
   }
 
 }

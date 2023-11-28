@@ -74,14 +74,8 @@ public class SimplePlatformViewsChannel {
             case "setBackgroundColor":
               setBackgroundColor(call, result);
               break;
-            case "isUsingImageView":
-              isUsingImageView(call, result);
-              break;
-            case "convertToImageView":
-              convertToImageView(call, result);
-              break;
-            case "revertFromImageView":
-              revertFromImageView(call, result);
+            case "setSurfaceMode":
+              setSurfaceMode(call, result);
               break;
             case "hotRestart":
               // noop
@@ -255,27 +249,14 @@ public class SimplePlatformViewsChannel {
           }
         }
 
-        private void isUsingImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+        private void setSurfaceMode(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
           try {
-            result.success(handler.isUsingImageView());
-          } catch (Exception exception) {
-            result.error("error", detailedExceptionString(exception), null);
-          }
-        }
-
-        private void convertToImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
-          try {
-            handler.convertToImageView();
-            result.success(null);
-          } catch (Exception exception) {
-            result.error("error", detailedExceptionString(exception), null);
-          }
-        }
-
-        private void revertFromImageView(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
-          try {
-            handler.revertFromImageView();
-            result.success(null);
+            if (call.arguments instanceof Integer) {
+              handler.setSurfaceMode((Integer) call.arguments);
+              result.success(null);
+            } else {
+              result.error("error", "Expected Integer, got " + call.arguments, null);
+            }
           } catch (Exception exception) {
             result.error("error", detailedExceptionString(exception), null);
           }
@@ -362,11 +343,7 @@ public class SimplePlatformViewsChannel {
     /** Set background color for Flutter view */
     void setBackgroundColor(int color);
 
-    boolean isUsingImageView();
-
-    void convertToImageView();
-
-    void revertFromImageView();
+    void setSurfaceMode(int mode);
   }
 
   /** Request sent from Flutter to create a new platform view. */

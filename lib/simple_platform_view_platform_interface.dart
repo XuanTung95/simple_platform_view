@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:simple_platform_view/src/common/surface_mode.dart';
 
 import 'simple_platform_view_method_channel.dart';
 
@@ -33,16 +34,12 @@ abstract class SimplePlatformViewPlatform extends PlatformInterface {
     throw UnimplementedError('restart() has not been implemented.');
   }
 
-  Future<bool> isUsingImageView() {
-    throw UnimplementedError('isUsingImageView() has not been implemented.');
+  SurfaceMode getSurfaceMode() {
+    throw UnimplementedError('getSurfaceMode() has not been implemented.');
   }
 
-  Future<void> convertToImageView() {
-    throw UnimplementedError('convertToImageView() has not been implemented.');
-  }
-
-  Future<void> revertFromImageView() {
-    throw UnimplementedError('revertFromImageView() has not been implemented.');
+  Future<void> setSurfaceMode(SurfaceMode mode) {
+    throw UnimplementedError('setSurfaceMode() has not been implemented.');
   }
 
 }

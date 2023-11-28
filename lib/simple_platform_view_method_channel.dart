@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:simple_platform_view/src/common/surface_mode.dart';
 
 import 'simple_platform_view_platform_interface.dart';
 import 'src/common/simple_system_channels.dart';
 
 /// An implementation of [SimplePlatformViewPlatform] that uses method channels.
 class MethodChannelSimplePlatformView extends SimplePlatformViewPlatform {
+
+  SurfaceMode _surfaceMode = SurfaceMode.multipleSurface;
 
   @override
   Future<void> setBackgroundColor(Color color) async {
@@ -19,25 +22,25 @@ class MethodChannelSimplePlatformView extends SimplePlatformViewPlatform {
   }
 
   @override
-  Future<bool> isUsingImageView() async {
-    if (Platform.isAndroid) {
-      final res = await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('isUsingImageView');
-      return res == true;
-    }
-    return false;
+  SurfaceMode getSurfaceMode() {
+    return _surfaceMode;
   }
 
   @override
-  Future<void> convertToImageView() async {
-    if (Platform.isAndroid) {
-      await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('convertToImageView');
+  Future<void> setSurfaceMode(SurfaceMode mode) async {
+    if (_surfaceMode == mode) {
+      return;
     }
-  }
-
-  @override
-  Future<void> revertFromImageView() async {
-    if (Platform.isAndroid) {
-      await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('revertFromImageView');
+    _surfaceMode = mode;
+    int modeInt;
+    switch (mode) {
+      case SurfaceMode.multipleSurface:
+        modeInt = 0;
+        break;
+      case SurfaceMode.singleSurface:
+        modeInt = 1;
+        break;
     }
+    await SimpleSystemChannels.platformViewsChannel.invokeMethod<dynamic>('setSurfaceMode', modeInt);
   }
 }

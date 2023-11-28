@@ -57,6 +57,8 @@ import java.util.Map;
  */
 public class SimplePlatformViewsController implements PlatformViewsAccessibilityDelegate, FlutterJNI.OnFrameTimeListener {
   private static final String TAG = "SimplePlatformViewsController";
+  public static final int SURFACE_MODE_MULTIPLE = 0;
+  public static final int SURFACE_MODE_SINGLE = 1;
 
   private AndroidTouchProcessor androidTouchProcessor;
 
@@ -134,12 +136,14 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
   // Show externalViewsContainer at the next frame
   private boolean pendingShowViewsContainer = false;
 
+  private int surfaceMode = SURFACE_MODE_MULTIPLE;
+
   final Runnable onImageAvailableCallback = new Runnable() {
     @Override
     public void run() {
       if (flutterImageView != null
               && flutterImageView.getIsAttachedToRenderer()
-              && viewWrappers.size() > 0
+              && (viewWrappers.size() > 0 || surfaceMode == SURFACE_MODE_SINGLE)
       ) {
         flutterImageView.acquireLatestImage();
         Image image = flutterImageView.getPendingImage();
@@ -270,7 +274,7 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
           if (viewWrappers.size() == 0 && viewWrapper != null) {
             // no external view present, should revert image view
             externalViewsContainer.setVisibility(View.GONE);
-            if (isViewSynchronizationAvailable()) {
+            if (surfaceMode != SURFACE_MODE_SINGLE && isViewSynchronizationAvailable()) {
               flutterView.revertImageView(new Runnable() {
                 @Override
                 public void run() {
@@ -462,29 +466,38 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
         }
 
         @Override
-        public boolean isUsingImageView() {
-          return isUsingImageViewRenderMode();
-        }
-
-        @Override
-        public void convertToImageView() {
-          if (flutterView != null) {
-            flutterView.convertToImageView();
-            initExternalViewContainer();
+        public void setSurfaceMode(int mode) {
+          if (mode != SURFACE_MODE_MULTIPLE && mode != SURFACE_MODE_SINGLE) {
+            Log.e(TAG, "Invalid Surface Mode " + mode);
+            return;
           }
-        }
-
-        @Override
-        public void revertFromImageView() {
           if (flutterView != null) {
-            flutterView.revertImageView(new Runnable() {
-              @Override
-              public void run() {
-              }
-            });
-            // To allows external views visible
-            initExternalViewContainer();
+            switch (mode) {
+              case SURFACE_MODE_SINGLE:
+                if (flutterImageView == null || !flutterImageView.getIsAttachedToRenderer()) {
+                  flutterView.convertToImageView();
+                  initExternalViewContainer();
+                }
+                break;
+              case SURFACE_MODE_MULTIPLE:
+                if (surfaceMode == SURFACE_MODE_SINGLE
+                        && flutterImageView != null
+                        && flutterImageView.getIsAttachedToRenderer()
+                        && viewWrappers.size() == 0) {
+                  flutterView.revertImageView(new Runnable() {
+                    @Override
+                    public void run() {
+                    }
+                  });
+                }
+                break;
+              default:
+                return;
+            }
+          } else {
+            Log.w(TAG,"FlutterView is not attached to SimplePlatformViewsController");
           }
+          surfaceMode = mode;
         }
       };
 
