@@ -1151,7 +1151,11 @@ public class SimplePlatformViewsController implements PlatformViewsAccessibility
 
   public void onImageAvailable(Image image) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-      frameDelayController.onImageAvailable(image.getTimestamp());
+      try {
+        frameDelayController.onImageAvailable(image.getTimestamp());
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
     } else {
       frameDelayController.onImageAvailable(System.nanoTime());
     }
