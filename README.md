@@ -159,3 +159,4 @@ If you are trying to use this with other plugin, clone their plugin and replace 
 | Plugins                       |
 | ------------------------------|
 | [simple_google_maps_flutter](https://pub.dev/packages/simple_google_maps_flutter) |
+| [simple_webview_flutter](https://pub.dev/packages/simple_webview_flutter) |

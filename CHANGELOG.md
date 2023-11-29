@@ -15,3 +15,7 @@
 * Remove iOS support
 * Now require a custom engine to run
 * Add external view synchronization feature
+
+## [0.2.0] - (2023-Nov-29)
+
+* Add SimplePlatformView.setSurfaceMode()
